@@ -35,7 +35,7 @@ def parse_args():
     )
 
 
-class NewGenes():
+class NCBIDataLoader():
     def __init__(self, name):
         
         self.name = name
