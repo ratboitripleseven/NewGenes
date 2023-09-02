@@ -1,9 +1,11 @@
 import os
 import pandas as pd
 import numpy as np
+import sys
+sys.path.append("../../../../NewGenes")
 
-ROOT_FOLDER = "./temp_data"
-OUTPUT_FOLDER = "./preprocessed_data"
+ROOT_FOLDER = "data/HGTDB/temp_data"
+OUTPUT_FOLDER = "data/HGTDB/preprocessed_data"
 
 '''
 TODO: Ask Josefa regarding Function Code.. It seems she does some checking.. Or check it yourself

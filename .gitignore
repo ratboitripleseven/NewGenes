@@ -1,3 +1,7 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+
+# database
+data/HGTDB/temp_data/*
+data/HGTDB/preprocessed_data/*

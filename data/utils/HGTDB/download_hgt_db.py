@@ -1,7 +1,9 @@
 import os
 import subprocess
+import sys
+sys.path.append("../../../../NewGenes")
 
-ROOT_FOLDER = "./temp_data"
+ROOT_FOLDER = "data/HGTDB/temp_data"
 
 
 LINK_TO_FILES = [
