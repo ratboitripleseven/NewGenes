@@ -3,9 +3,8 @@ This script takes in .fna file and then return genes in dict
 '''
 import os
 import sys
-
-# for debug
-SEQUENCES_FOLDER = '../sequence_files'
+sys.path.append("../../../../../NewGenes")
+SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
 
 def prep_genome(sequence_folder,genome)-> dict:
     if not os.path.isdir(sequence_folder):

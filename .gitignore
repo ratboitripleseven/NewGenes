@@ -5,3 +5,8 @@ __pycache__/
 # database
 data/HGTDB/temp_data/*
 data/HGTDB/preprocessed_data/*
+data/NCBI/sequence_files/*
+
+# personal stuff ignore!
+new_genes/*
+old_experiments/*

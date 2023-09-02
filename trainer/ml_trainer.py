@@ -1,7 +1,7 @@
-from utils.machine_learning.evals.report import evaluate_predictions, dummy_probs, plot_PR_curve, plot_ROC_curve
+from trainer.evals.report import evaluate_predictions, dummy_probs, plot_PR_curve, plot_ROC_curve
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
-from utils.machine_learning.data_loader import ml_load_species
+from data.utils.HGTDB.ml_data_loader import ml_load_species
 from sklearn import metrics
 import numpy as np
 
