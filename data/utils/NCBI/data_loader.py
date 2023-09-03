@@ -257,15 +257,15 @@ class NCBIDataLoader():
 
 ## for testing
 
-class TestNewGenes(unittest.TestCase):
+class TestNCBIDataLoader(unittest.TestCase):
     
     
     def test_init_positive(self):
-        genome = NewGenes('ecoli')
+        genome = NCBIDataLoader('ecoli')
         assert genome.genes is not None, "Somthing is wrong when reading file"
     
     def test_prep_genome(self):
-        genome = NewGenes('ecoli')
+        genome = NCBIDataLoader('ecoli')
         assert len(genome) != 0, "cannot access length"
         
     
