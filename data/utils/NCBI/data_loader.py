@@ -3,7 +3,7 @@ This Script/module is supposed to recreate what the paper
 'Horizontal Gene Transfer in Bacterial and Archaeal Complete Genomes'
 calculated
 
-
+TODO: currently cub is sum of all cubs in genes (is this right?)
 '''
 import os
 import sys
@@ -24,6 +24,24 @@ import urllib
 import gzip
 import shutil
 SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
+CODE = {
+    'ttt': 'F', 'tct': 'S', 'tat': 'Y', 'tgt': 'C',
+    'ttc': 'F', 'tcc': 'S', 'tac': 'Y', 'tgc': 'C',
+    'tta': 'L', 'tca': 'S', 'taa': '*', 'tga': '*',
+    'ttg': 'L', 'tcg': 'S', 'tag': '*', 'tgg': 'W',
+    'ctt': 'L', 'cct': 'P', 'cat': 'H', 'cgt': 'R',
+    'ctc': 'L', 'ccc': 'P', 'cac': 'H', 'cgc': 'R',
+    'cta': 'L', 'cca': 'P', 'caa': 'Q', 'cga': 'R',
+    'ctg': 'L', 'ccg': 'P', 'cag': 'Q', 'cgg': 'R',
+    'att': 'I', 'act': 'T', 'aat': 'N', 'agt': 'S',
+    'atc': 'I', 'acc': 'T', 'aac': 'N', 'agc': 'S',
+    'ata': 'I', 'aca': 'T', 'aaa': 'K', 'aga': 'R',
+    'atg': 'M', 'acg': 'T', 'aag': 'K', 'agg': 'R',
+    'gtt': 'V', 'gct': 'A', 'gat': 'D', 'ggt': 'G',
+    'gtc': 'V', 'gcc': 'A', 'gac': 'D', 'ggc': 'G',
+    'gta': 'V', 'gca': 'A', 'gaa': 'E', 'gga': 'G',
+    'gtg': 'V', 'gcg': 'A', 'gag': 'E', 'ggg': 'G'
+}
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -58,17 +76,23 @@ class NCBIDataLoader():
         self.std_GC2 = 0
         self.std_GC3 = 0
         
+        self.mean_cub = {}
+        self.std_cub = {}
+        
+        self.cub = {}
+        for cds in CODE:
+            self.std_cub[cds.upper()] = 0
+            self.cub[cds.upper()] = 0
+        
         # https://doi.org/10.1093/nar/gkm204
         self.rel_freq = None
         self.nucleutide_identity = None
         self.dinucleutide_identity = None
-        self.cub = None
+        
         
         
         
         ####
-        self.mean_codon_usage = 0
-        self.std_dev_codon_usage = 0
         self.rscu = 0
         self.aa_comp = 0
         
@@ -136,11 +160,17 @@ class NCBIDataLoader():
             gene['g_count'], gene['a_count'], gene['c_count'], gene['t_count'], _ = calc_gc_content(gene['sequence'])
             gene['GCT'], gene['GC1'], gene['GC2'], gene['GC3'] = GC123(gene['sequence'])
             
+            gene['cub'] = calc_cub(gene['sequence'])
+            
             # add to mean calcilattion
             self.mean_GCT += gene['GCT']
             self.mean_GC1 += gene['GC1']
             self.mean_GC2 += gene['GC2']
             self.mean_GC3 += gene['GC3']
+            
+            for cds in CODE:
+                self.cub[cds.upper()] += gene['cub'][cds.upper()]
+            # self.mean_cub += gene['cub']
             
             # get complete sequence
             self.complete_sequence += gene['sequence']
@@ -149,14 +179,13 @@ class NCBIDataLoader():
             gene['rel_freq'] = calc_relative_freq(gene['sequence'])
             gene['12_symbols'] = calc_12_symbols(gene['sequence'])
             gene['48_symbols'] = calc_48_symbols(gene['sequence'])
-            gene['cub'] = calc_cub(gene['sequence'])
             
         
         # https://doi.org/10.1093/nar/gkm204
         self.rel_freq = calc_relative_freq(self.complete_sequence)
         self.nucleutide_identity = calc_12_symbols(self.complete_sequence)
         self.dinucleutide_identity = calc_48_symbols(self.complete_sequence)
-        self.cub = calc_cub(self.complete_sequence)
+        # self.cub = calc_cub(self.complete_sequence)
         
         #finalize mean
         self.mean_GCT = self.mean_GCT/len(self.genes)
@@ -164,11 +193,19 @@ class NCBIDataLoader():
         self.mean_GC2 = self.mean_GC2/len(self.genes)
         self.mean_GC3 = self.mean_GC3/len(self.genes)
         
+        # mean for cub (TODO:recheck this!!!)
+        for cds in CODE:
+            self.mean_cub[cds.upper()]=self.cub[cds.upper()]/len(self.genes)
+        # self.mean_cub = self.mean_cub/len(self.genes)
+        
         # calculate standard devation of whole genome
         numeratorT = 0
         numerator1 = 0
         numerator2 = 0
         numerator3 = 0
+        numeratorCub = {}
+        for cds in CODE:
+            numeratorCub[cds.upper()] = 0
         for tag in self.genes:
             gene = self.__getitem__(key=tag)
             deltaT = (gene['GCT'] - self.mean_GCT)
@@ -176,19 +213,36 @@ class NCBIDataLoader():
             delta2 = (gene['GC2'] - self.mean_GC2)
             delta3 = (gene['GC3'] - self.mean_GC3)
             
+            deltaCub = {}
+            for cds in CODE:
+                deltaCub[cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])
+            # deltaCub = (gene['cub'] - self.mean_cub)
+            
             deltaT *= deltaT
             delta1 *= delta1
             delta2 *= delta2
             delta3 *= delta3
+            for cds in CODE:
+                squared = deltaCub[cds.upper()]**2
+                deltaCub[cds.upper()] = squared
+            # deltaCub *= deltaCub
             numeratorT += deltaT
             numerator1 += delta1
             numerator2 += delta2
             numerator3 += delta3
+            for cds in CODE:
+                numeratorCub[cds.upper()] += deltaCub[cds.upper()]
+            
+            # numeratorCub += numeratorCub
         
         self.std_GCT = math.sqrt(numeratorT/len(self.genes))
         self.std_GC1 = math.sqrt(numerator1/len(self.genes))
         self.std_GC2 = math.sqrt(numerator2/len(self.genes))
         self.std_GC3 = math.sqrt(numerator3/len(self.genes))
+        
+        for cds in CODE:
+            self.std_cub[cds.upper()] = math.sqrt(numeratorCub[cds.upper()]/len(self.genes))
+        # self.std_cub = math.sqrt(numeratorCub/len(self.genes))
         
         # add std calculation for each gene
         for tag in self.genes:
@@ -197,6 +251,9 @@ class NCBIDataLoader():
             gene['SD1'] = (gene['GC1'] - self.mean_GC1)/self.std_GC1
             gene['SD2'] = (gene['GC2'] - self.mean_GC2)/self.std_GC2
             gene['SD3'] = (gene['GC3'] - self.mean_GC3)/self.std_GC3
+            
+            for cds in CODE:
+                gene['std_cub'][cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])/self.std_cub[cds.upper()]
             
         
         

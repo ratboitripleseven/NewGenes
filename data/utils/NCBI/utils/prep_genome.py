@@ -61,6 +61,7 @@ def prep_genome(sequence_folder,genome)-> dict:
                 '12_symbols': None,
                 '48_symbols': None,
                 'cub': None,
+                'std_cub':{},
                 'sequence':''
             }
         else:
