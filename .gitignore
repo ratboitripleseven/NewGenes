@@ -6,6 +6,9 @@ __pycache__/
 data/HGTDB/temp_data/*
 data/HGTDB/preprocessed_data/*
 data/NCBI/sequence_files/*
+data/HGTREE/version_1/assembly_summary_genbank.txt
+data/HGTREE/version_1/assembly_summary_genbank_historical.txt
+data/HGTREE/version_1/assembly_summary.txt
 
 # personal stuff ignore!
 new_genes/*
