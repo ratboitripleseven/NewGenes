@@ -9,7 +9,7 @@ data/NCBI/sequence_files/*
 data/HGTREE/version_1/assembly_summary_genbank.txt
 data/HGTREE/version_1/assembly_summary_genbank_historical.txt
 data/HGTREE/version_1/assembly_summary.txt
-
+data/HGTREE/sequence_files/*
 # personal stuff ignore!
 new_genes/*
 old_experiments/*

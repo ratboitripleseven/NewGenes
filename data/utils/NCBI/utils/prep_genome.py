@@ -35,6 +35,11 @@ def prep_genome(sequence_folder,genome)-> dict:
             protein_end_index = s.find(']', protein_index)
             protein = s[protein_index+8:protein_end_index]
             
+            # get protein id
+            protein_id_index = s.find('protein_id=')
+            protein_id_end_index = s.find(']', protein_id_index)
+            protein_id = s[protein_id_index+11:protein_id_end_index]
+            
             # get location
             location_index = s.find('location=')
             location_end_index = s.find(']', location_index)
@@ -44,6 +49,7 @@ def prep_genome(sequence_folder,genome)-> dict:
             genes[locus_tag] = {
                 'gene' : gene,
                 'protein' : protein,
+                'protein_id' : protein_id,
                 'location': location,
                 'g_count': None,
                 'a_count': None,
