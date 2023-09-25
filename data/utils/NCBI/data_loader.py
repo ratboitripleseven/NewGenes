@@ -59,8 +59,13 @@ class NCBIDataLoader():
         self.name = name
         
         # keys are locust_tag
-        self._download_genome(name=name)
+        # not really a good way to handle error!
         self.genes = self._prep_genome(name=name)
+        if self.genes == 0:
+            self._download_genome(name=name)
+            self.genes = self._prep_genome(name=name)
+        
+        
         #self.genes = pd.DataFrame.from_dict(self._prep_genome(name=name), orient='index')
         
         #init metrics to 0

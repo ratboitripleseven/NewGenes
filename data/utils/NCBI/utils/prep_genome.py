@@ -15,6 +15,7 @@ def prep_genome(sequence_folder,genome)-> dict:
             lines = f.readlines()
     except IOError:
         print(f"ERROR: The file {os.path.join(sequence_folder,genome)}.fna does not exist")
+        return 0
         
     genes = dict()
     for i in range(len(lines)):
