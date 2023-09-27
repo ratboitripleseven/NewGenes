@@ -28,8 +28,11 @@ def prep_genome(sequence_folder,genome)-> dict:
             
             # get gene (synonym name)
             gene_index = s.find('gene=')
-            gene_end_index = s.find(']', gene_index)
-            gene = s[gene_index+5:gene_end_index]
+            if gene_index == -1:
+                gene = None
+            else:
+                gene_end_index = s.find(']', gene_index)
+                gene = s[gene_index+5:gene_end_index]
             
             # get protein
             protein_index = s.find('protein=')
