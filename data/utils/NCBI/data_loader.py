@@ -166,7 +166,35 @@ class NCBIDataLoader():
             gene['g_count'], gene['a_count'], gene['c_count'], gene['t_count'], _ = calc_gc_content(gene['sequence'])
             gene['GCT'], gene['GC1'], gene['GC2'], gene['GC3'] = GC123(gene['sequence'])
             
+            # add codon usage bias per gene
             gene['cub'] = calc_cub(gene['sequence'])
+            
+            # add RSCU
+            # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2528880/#:~:text=Relative%20synonymous%20codon%20usage%20(RSCU,amino%20acids%20are%20used%20equally.
+            # http://genomes.urv.es/CAIcal/tutorial.pdf
+            RSCU = {}
+            for cds in CODE:
+                RSCU[cds.upper()]=0
+            for cds in CODE:
+                # check amino acid of current codon
+                amino_acid = CODE[cds]
+                # get total amount of synonymous codon
+                number_of_synonymous_codon = list(CODE.values()).count(amino_acid)
+                # get total count of synonymous codn
+                total_count = 0
+                for codon in CODE:
+                    if CODE[codon]==amino_acid:
+                        total_count+= gene['cub'][codon.upper()]
+                
+                numerator = gene['cub'][cds.upper()]
+                denominator = (total_count / number_of_synonymous_codon)
+                if denominator == 0:
+                    RSCU[cds.upper()] = float(0)
+                else:
+                    RSCU[cds.upper()] = numerator/denominator
+            # assign RSCU
+            gene['RSCU'] = RSCU
+            
             
             # add to mean calcilattion
             self.mean_GCT += gene['GCT']
@@ -260,6 +288,8 @@ class NCBIDataLoader():
             
             for cds in CODE:
                 gene['std_cub'][cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])/self.std_cub[cds.upper()]
+                
+        
             
         
         
