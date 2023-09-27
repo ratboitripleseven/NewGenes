@@ -137,7 +137,8 @@ class NCBIDataLoader():
             #get summary
             summary = self._get_assembly_summary(id)
             #get ftp link
-            url = summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_RefSeq']
+            # for now going forward no refseq files are going to be used!
+            url = summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_GenBank']
             if url == '':
                 continue
             label = os.path.basename(url)
