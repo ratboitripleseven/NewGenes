@@ -16,6 +16,7 @@ from data.utils.NCBI.metrics.calc_relative_freq import calc_relative_freq
 from data.utils.NCBI.metrics.calc_12_symbols import calc_12_symbols
 from data.utils.NCBI.metrics.calc_48_symbols import calc_48_symbols
 from data.utils.NCBI.metrics.calc_cub import calc_cub
+from data.utils.NCBI.metrics.calc_RSCU_and_RFC import calc_RSCU_and_RFC
 import unittest
 import math 
 from Bio.SeqUtils import GC123
@@ -84,11 +85,23 @@ class NCBIDataLoader():
         self.mean_cub = {}
         self.std_cub = {}
         
+        self.mean_RSCU = {}
+        self.std_RSCU = {}
+        
+        self.mean_RFC = {}
+        self.std_RFC = {} 
+        
         self.cub = {}
         for cds in CODE:
             self.std_cub[cds.upper()] = 0
             self.cub[cds.upper()] = 0
-        
+            
+            self.mean_RSCU[cds.upper()] = 0
+            self.std_RSCU[cds.upper()] = 0
+            
+            self.mean_RFC[cds.upper()] = 0
+            self.std_RFC[cds.upper()] = 0
+            
         # https://doi.org/10.1093/nar/gkm204
         self.rel_freq = None
         self.nucleutide_identity = None
@@ -98,7 +111,6 @@ class NCBIDataLoader():
         
         
         ####
-        self.rscu = 0
         self.aa_comp = 0
         
         #fill metrics
@@ -169,31 +181,8 @@ class NCBIDataLoader():
             # add codon usage bias per gene
             gene['cub'] = calc_cub(gene['sequence'])
             
-            # add RSCU
-            # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2528880/#:~:text=Relative%20synonymous%20codon%20usage%20(RSCU,amino%20acids%20are%20used%20equally.
-            # http://genomes.urv.es/CAIcal/tutorial.pdf
-            RSCU = {}
-            for cds in CODE:
-                RSCU[cds.upper()]=0
-            for cds in CODE:
-                # check amino acid of current codon
-                amino_acid = CODE[cds]
-                # get total amount of synonymous codon
-                number_of_synonymous_codon = list(CODE.values()).count(amino_acid)
-                # get total count of synonymous codn
-                total_count = 0
-                for codon in CODE:
-                    if CODE[codon]==amino_acid:
-                        total_count+= gene['cub'][codon.upper()]
-                
-                numerator = gene['cub'][cds.upper()]
-                denominator = (total_count / number_of_synonymous_codon)
-                if denominator == 0:
-                    RSCU[cds.upper()] = float(0)
-                else:
-                    RSCU[cds.upper()] = numerator/denominator
-            # assign RSCU
-            gene['RSCU'] = RSCU
+            # add RSCU and Relative Frequency of Codon Usage
+            gene['RSCU'], gene['RFC'] = calc_RSCU_and_RFC(gene['cub'])
             
             
             # add to mean calcilattion
@@ -202,8 +191,12 @@ class NCBIDataLoader():
             self.mean_GC2 += gene['GC2']
             self.mean_GC3 += gene['GC3']
             
+            # calculate cub
+            # the mean RSCU and RFC is only intermediate!
             for cds in CODE:
                 self.cub[cds.upper()] += gene['cub'][cds.upper()]
+                self.mean_RSCU[cds.upper()] += gene['RSCU'][cds.upper()]
+                self.mean_RFC[cds.upper()] += gene['RFC'][cds.upper()]
             # self.mean_cub += gene['cub']
             
             # get complete sequence
@@ -227,19 +220,26 @@ class NCBIDataLoader():
         self.mean_GC2 = self.mean_GC2/len(self.genes)
         self.mean_GC3 = self.mean_GC3/len(self.genes)
         
-        # mean for cub (TODO:recheck this!!!)
+        # mean for cub, RSCU and RFC
         for cds in CODE:
             self.mean_cub[cds.upper()]=self.cub[cds.upper()]/len(self.genes)
+            self.mean_RSCU[cds.upper()]=self.mean_RSCU[cds.upper()]/len(self.genes)
+            self.mean_RFC[cds.upper()]=self.mean_RFC[cds.upper()]/len(self.genes)
         # self.mean_cub = self.mean_cub/len(self.genes)
         
-        # calculate standard devation of whole genome
+        # https://math.stackexchange.com/questions/1433374/difference-between-these-two-standard-deviation-formulas
+        # calculate standard devation of whole genome (population)
         numeratorT = 0
         numerator1 = 0
         numerator2 = 0
         numerator3 = 0
         numeratorCub = {}
+        numeratorRSCU = {}
+        numeratorRFC = {}
         for cds in CODE:
             numeratorCub[cds.upper()] = 0
+            numeratorRSCU[cds.upper()] = 0
+            numeratorRFC[cds.upper()] = 0
         for tag in self.genes:
             gene = self.__getitem__(key=tag)
             deltaT = (gene['GCT'] - self.mean_GCT)
@@ -248,8 +248,12 @@ class NCBIDataLoader():
             delta3 = (gene['GC3'] - self.mean_GC3)
             
             deltaCub = {}
+            deltaRSCU = {}
+            deltaRFC = {}
             for cds in CODE:
                 deltaCub[cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])
+                deltaRSCU[cds.upper()] = (gene['RSCU'][cds.upper()] - self.mean_RSCU[cds.upper()])
+                deltaRFC[cds.upper()] = (gene['RFC'][cds.upper()] - self.mean_RFC[cds.upper()])
             # deltaCub = (gene['cub'] - self.mean_cub)
             
             deltaT *= deltaT
@@ -257,8 +261,13 @@ class NCBIDataLoader():
             delta2 *= delta2
             delta3 *= delta3
             for cds in CODE:
-                squared = deltaCub[cds.upper()]**2
-                deltaCub[cds.upper()] = squared
+                squared_cub = deltaCub[cds.upper()]**2
+                squared_RSCU = deltaRSCU[cds.upper()]**2
+                squared_RFC = deltaRFC[cds.upper()]**2
+                
+                deltaCub[cds.upper()] = squared_cub
+                deltaRSCU[cds.upper()] = squared_RSCU
+                deltaRFC[cds.upper()] = squared_RFC
             # deltaCub *= deltaCub
             numeratorT += deltaT
             numerator1 += delta1
@@ -266,6 +275,8 @@ class NCBIDataLoader():
             numerator3 += delta3
             for cds in CODE:
                 numeratorCub[cds.upper()] += deltaCub[cds.upper()]
+                numeratorRSCU[cds.upper()] += deltaRSCU[cds.upper()]
+                numeratorRFC[cds.upper()] += deltaRFC[cds.upper()]
             
             # numeratorCub += numeratorCub
         
@@ -276,9 +287,11 @@ class NCBIDataLoader():
         
         for cds in CODE:
             self.std_cub[cds.upper()] = math.sqrt(numeratorCub[cds.upper()]/len(self.genes))
+            self.std_RSCU[cds.upper()] = math.sqrt(numeratorRSCU[cds.upper()]/len(self.genes))
+            self.std_RFC[cds.upper()] = math.sqrt(numeratorRFC[cds.upper()]/len(self.genes))
         # self.std_cub = math.sqrt(numeratorCub/len(self.genes))
         
-        # add std calculation for each gene
+        # add std calculation for each gene (sample)
         for tag in self.genes:
             gene = self.__getitem__(key=tag)
             gene['SDT'] = (gene['GCT'] - self.mean_GCT)/self.std_GCT
