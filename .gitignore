@@ -6,7 +6,9 @@ __pycache__/
 data/HGTDB/temp_data/*
 data/HGTDB/preprocessed_data/*
 data/NCBI/sequence_files/*
-
+data/HGTREE/version_1/*
+data/HGTREE/sequence_files/*
 # personal stuff ignore!
+newgenes_complete_reference.csv
 new_genes/*
 old_experiments/*

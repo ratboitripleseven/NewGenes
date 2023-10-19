@@ -15,6 +15,7 @@ def prep_genome(sequence_folder,genome)-> dict:
             lines = f.readlines()
     except IOError:
         print(f"ERROR: The file {os.path.join(sequence_folder,genome)}.fna does not exist")
+        return 0
         
     genes = dict()
     for i in range(len(lines)):
@@ -27,13 +28,21 @@ def prep_genome(sequence_folder,genome)-> dict:
             
             # get gene (synonym name)
             gene_index = s.find('gene=')
-            gene_end_index = s.find(']', gene_index)
-            gene = s[gene_index+5:gene_end_index]
+            if gene_index == -1:
+                gene = None
+            else:
+                gene_end_index = s.find(']', gene_index)
+                gene = s[gene_index+5:gene_end_index]
             
             # get protein
             protein_index = s.find('protein=')
             protein_end_index = s.find(']', protein_index)
             protein = s[protein_index+8:protein_end_index]
+            
+            # get protein id
+            protein_id_index = s.find('protein_id=')
+            protein_id_end_index = s.find(']', protein_id_index)
+            protein_id = s[protein_id_index+11:protein_id_end_index]
             
             # get location
             location_index = s.find('location=')
@@ -44,6 +53,7 @@ def prep_genome(sequence_folder,genome)-> dict:
             genes[locus_tag] = {
                 'gene' : gene,
                 'protein' : protein,
+                'protein_id' : protein_id,
                 'location': location,
                 'g_count': None,
                 'a_count': None,
@@ -61,6 +71,8 @@ def prep_genome(sequence_folder,genome)-> dict:
                 '12_symbols': None,
                 '48_symbols': None,
                 'cub': None,
+                'RSCU': None,
+                'std_cub':{},
                 'sequence':''
             }
         else:
