@@ -11,6 +11,7 @@ sys.path.append("../../../../NewGenes")
 import argparse
 import pandas as pd
 from data.utils.NCBI.utils.prep_genome import prep_genome
+from data.utils.NCBI.utils.annotate_HGTs import *
 from data.utils.NCBI.metrics.calc_gc_content import calc_gc_content
 from data.utils.NCBI.metrics.calc_relative_freq import calc_relative_freq
 from data.utils.NCBI.metrics.calc_12_symbols import calc_12_symbols
@@ -295,9 +296,79 @@ class NCBIDataLoader():
         for tag in self.genes:
             gene = self.__getitem__(key=tag)
             gene['SDT'] = (gene['GCT'] - self.mean_GCT)/self.std_GCT
+            if abs(gene['SDT']) >= 1.5:
+                if abs(gene['SDT']) >= 2:
+                    if gene['SDT'] > 0:
+                        gene['SimT'] = +2
+                    else:
+                        gene['SimT'] = -2
+                else:
+                    if gene['SDT'] > 0:
+                        gene['SimT'] = +1
+                    else:
+                        gene['SimT'] = -1
+            else:
+                gene['SimT'] = 0
+            
             gene['SD1'] = (gene['GC1'] - self.mean_GC1)/self.std_GC1
+            if abs(gene['SD1']) >= 1.5:
+                if abs(gene['SD1']) >= 2:
+                    if gene['SD1'] > 0:
+                        gene['Sim1'] = +2
+                    else:
+                        gene['Sim1'] = -2
+                else:
+                    if gene['SD1'] > 0:
+                        gene['Sim1'] = +1
+                    else:
+                        gene['Sim1'] = -1
+            else:
+                gene['Sim1'] = 0
+                
             gene['SD2'] = (gene['GC2'] - self.mean_GC2)/self.std_GC2
+            if abs(gene['SD2']) >= 1.5:
+                if abs(gene['SD2']) >= 2:
+                    if gene['SD2'] > 0:
+                        gene['Sim2'] = +2
+                    else:
+                        gene['Sim2'] = -2
+                else:
+                    if gene['SD2'] > 0:
+                        gene['Sim2'] = +1
+                    else:
+                        gene['Sim2'] = -1
+            else:
+                gene['Sim2'] = 0
+            
             gene['SD3'] = (gene['GC3'] - self.mean_GC3)/self.std_GC3
+            if abs(gene['SD3']) >= 1.5:
+                if abs(gene['SD3']) >= 2:
+                    if gene['SD3'] > 0:
+                        gene['Sim3'] = +2
+                    else:
+                        gene['Sim3'] = -2
+                else:
+                    if gene['SD3'] > 0:
+                        gene['Sim3'] = +1
+                    else:
+                        gene['Sim3'] = -1
+            else:
+                gene['Sim3'] = 0
+                
+            # simGC
+            count = 0
+            # if simt is more than 1.5
+            if gene['SimT'] >=1:
+                count+=1
+                if gene['SimT'] >=2:
+                    count+=1
+                # if sim1 and sim3 is equal sign and if 
+            elif (gene['SD1'] * gene['SD3']) > 0:
+                if gene['Sim1'] >=1:
+                    count+=1
+                elif gene['Sim3'] >=1:
+                    count+=1
+            gene['SimGC']=count
             
             for cds in CODE:
                 gene['std_cub'][cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])/self.std_cub[cds.upper()]
@@ -334,6 +405,68 @@ class NCBIDataLoader():
         return self.genes[key]
     
 
+    def to_HGTDB(self, return_type='pd'):
+        '''
+        Return the whole object into a dataframe style like HGTDB
+        or print a csv
+        
+        '''
+        if return_type not in ['pd', 'csv']:
+            raise ValueError('argument unknown! choose pd or csv')
+        
+            
+        
+        # get HGT candidates based on GC content
+        hgt_candidates_GC = GC_Content_Deviation(self)
+        
+        # get list of to exclude in list above based on Amino Acid content
+        calculate_amino_acid_content_genome_mean(self)
+        calculate_amino_acid_content_gene_mean(self)
+        calculate_amino_acid_content_genome_std(self)
+        list_of_non_extraneous_genes_AA = check_amino_acid_deviation(self)
+        
+        # coombine information from above
+        extraneous_but_non_HGT = []
+        deemed_HGT =[]
+        for i in hgt_candidates_GC:
+            if i in list_of_non_extraneous_genes_AA:
+                extraneous_but_non_HGT.append(i)
+            else:
+                deemed_HGT.append(i)
+        
+        
+        # calculate mahalanobis distances
+        calculate_mahalanobis_distances(self)
+        hgt_candidates_Mah = get_potential_HGT_Mah(self)
+
+        
+        print(len(extraneous_but_non_HGT))
+        print(len(deemed_HGT))
+        combined_list_hgt = deemed_HGT+hgt_candidates_Mah
+        
+        print('Total hgt by gc and mah: {}'.format(len(combined_list_hgt)))
+        for tag in self.genes:
+            gene = self.__getitem__(key=tag)
+            if tag in combined_list_hgt:
+                gene['HGT']='H'
+            else:
+                gene['HGT']=None
+        
+        # output to as pandas
+        if return_type == 'pd':
+            # return a pandas dataframe object
+            return pd.DataFrame.from_dict(self.genes, orient='index')
+        elif return_type == 'csv':
+            # return 0 
+            # print a hgdtb like csv file
+            df = pd.DataFrame.from_dict(self.genes, orient='index')
+            print('printing csv... saving as {}.csv'.format(self.name))
+            df.drop(columns=['g_count','a_count','c_count','t_count', 'rel_freq', '12_symbols', '48_symbols', 'cub','sequence','std_cub', 'RSCU', 'RFC', 'AA_Content_mean'], inplace=True)
+            df['Mah'] = [float(x) for x in df['Mah']]
+            df.to_csv('{}.csv'.format(self.name))
+            print('done printing')
+            return 0
+        
         
     def list_genes(self):
         for genes in self.genes:

@@ -23,8 +23,11 @@ def prep_genome(sequence_folder,genome)-> dict:
         if s[0] == '>':
             # get locus_tag (gene)
             locus_tag_index = s.find('locus_tag=')
-            locus_tag_end_index = s.find(']', locus_tag_index)
-            locus_tag = s[locus_tag_index+10:locus_tag_end_index]
+            if locus_tag_index == -1:
+                locus_tag = "No_Locust_Tag_{}".format(i)
+            else:
+                locus_tag_end_index = s.find(']', locus_tag_index)
+                locus_tag = s[locus_tag_index+10:locus_tag_end_index]
             
             # get gene (synonym name)
             gene_index = s.find('gene=')
@@ -61,12 +64,21 @@ def prep_genome(sequence_folder,genome)-> dict:
                 't_count': None,
                 'GC1': None,
                 'SD1': None,
+                'Sim1': None,
                 'GC2': None,
                 'SD2': None,
+                'Sim2': None,
                 'GC3': None,
                 'SD3': None,
+                'Sim3': None,
                 'GCT': None,
                 'SDT': None,
+                'SimT': None,
+                'SimGC': None,
+                'Mah': None,
+                'SimMah': None,
+                'Dev.AA': None,
+                'HGT':None,
                 'rel_freq': None,
                 '12_symbols': None,
                 '48_symbols': None,
