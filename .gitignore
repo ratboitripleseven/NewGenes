@@ -5,13 +5,23 @@ __pycache__/
 # database
 data/HGTDB/temp_data/*
 data/HGTDB/preprocessed_data/*
+data/NCBI/prep/*
 data/NCBI/sequence_files/*
 data/NCBI/cog-20.cog.csv
 data/NCBI/cog-20.def.tab
 data/HGTREE/version_1/*
 data/HGTREE/sequence_files/*
+partition_file/*
+reference/*
+models/*
+configuration/*
 # personal stuff ignore!
 newgenes_complete_reference.csv
 new_genes/*
 old_experiments/*
 Playground.ipynb
+gtdb_and_links.csv
+hgtree_and_links.csv
+bac120_metadata.tsv
+calculated_mah_20231910.csv
+complete_reference_redo.csv
