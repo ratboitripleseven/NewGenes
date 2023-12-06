@@ -7,17 +7,17 @@ TODO: currently cub is sum of all cubs in genes (is this right?)
 '''
 import os
 import sys
-sys.path.append("../../../../NewGenes")
+sys.path.append("../NewGenes")
 import argparse
 import pandas as pd
-from data.utils.NCBI.utils.prep_genome import prep_genome
-from data.utils.NCBI.utils.annotate_HGTs import *
-from data.utils.NCBI.metrics.calc_gc_content import calc_gc_content
-from data.utils.NCBI.metrics.calc_relative_freq import calc_relative_freq
-from data.utils.NCBI.metrics.calc_12_symbols import calc_12_symbols
-from data.utils.NCBI.metrics.calc_48_symbols import calc_48_symbols
-from data.utils.NCBI.metrics.calc_cub import calc_cub
-from data.utils.NCBI.metrics.calc_RSCU_and_RFC import calc_RSCU_and_RFC
+from data_loader.utils.prep_genome import prep_genome
+from data_loader.utils.annotate_HGTs import *
+from data_loader.metrics.calc_gc_content import calc_gc_content
+from data_loader.metrics.calc_relative_freq import calc_relative_freq
+from data_loader.metrics.calc_12_symbols import calc_12_symbols
+from data_loader.metrics.calc_48_symbols import calc_48_symbols
+from data_loader.metrics.calc_cub import calc_cub
+from data_loader.metrics.calc_RSCU_and_RFC import calc_RSCU_and_RFC
 import unittest
 import math 
 from Bio.SeqUtils import GC123
@@ -26,6 +26,7 @@ import urllib
 import gzip
 import shutil
 SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
+PREPPED_SEQUENCES_FOLDER = 'data/NCBI/prep/'
 CODE = {
     'ttt': 'F', 'tct': 'S', 'tat': 'Y', 'tgt': 'C',
     'ttc': 'F', 'tcc': 'S', 'tac': 'Y', 'tgc': 'C',
@@ -53,13 +54,79 @@ def parse_args():
         default = 'bsub',
         help = 'ta'
     )
+    
+class NCBIDataLoader:
+    def __init__(self, partition_file, data_type = 'F'):
+        self.partition_file = partition_file
+        self.partition_frame = None
+        self._check_prepped_file_availability()
+        self.data_type = data_type
+        
+        
+        
+        
+    
+    def _check_prepped_file_availability(self):
+        self.partition_frame  = pd.read_csv(self.partition_file)
+        for i in range(len(self.partition_frame)):
+            identifier = self.partition_frame.loc[i,'GenBank accession number']
+            # check if file is prepped
+            if not os.path.isfile(PREPPED_SEQUENCES_FOLDER+identifier+'.csv'):
+                temp_downloader = NCBIDataDownloaderPrep(identifier)
+                temp_downloader.to_HGTDB('csv')
+    
+    def dataset_prep(self):
+        if self.data_type == 'A':
+            raise NotImplementedError('Not yet implemented')
+        elif self.data_type == 'B':
+            raise NotImplementedError('Not yet implemented')
+        elif self.data_type == 'C':
+            raise NotImplementedError('Not yet implemented')
+        elif self.data_type == 'D':
+            raise NotImplementedError('Not yet implemented')
+        elif self.data_type == 'E':
+            raise NotImplementedError('Not yet implemented')
+        elif self.data_type == 'F':
+            columns_to_drop = ["gene", "protein_id","protein", "location", "GC1","GC2","GC3", "GCT", "Sim1", "Sim2", "Sim3", "SimT", "SimGC", "SimMah"]
+            columns = 6
+        else:
+            raise ValueError(f'No data type {self.data_type}')
+        
+        X_train = np.array([]).reshape(0,columns)
+        y_train = np.array([]).reshape(0,)
+        X_test = np.array([]).reshape(0,columns)
+        y_test = np.array([]).reshape(0,)
+        
+        # TODO: Add sleep here!
+        for i in range(len(self.partition_frame)):
+            identifier = self.partition_frame.loc[i,'GenBank accession number']
+            temp_data = pd.read_csv(PREPPED_SEQUENCES_FOLDER+identifier+'.csv', index_col=0)
+            temp_data['HGT'] = temp_data['HGT'].fillna(0)
+            temp_data['HGT'] = temp_data['HGT'].replace('H',1)
+            # TODO:think about this better
+            temp_data[ temp_data['Dev.AA'] != '[]'] = 1
+            temp_data['Dev.AA'] = temp_data['Dev.AA'].replace('[]', 0)
+            
+            temp_data = temp_data.drop(columns=columns_to_drop)
+            array = temp_data.values
+            
+            X,y = array[:,0:-1], array[:,-1]
+            if self.partition_frame.loc[i,'partition'] == 'train':
+                X_train = np.concatenate([X, X_train], axis = 0)
+                y_train = np.concatenate([y, y_train], axis = 0)
+            else:
+                X_test = np.concatenate([X, X_test], axis = 0)
+                y_test = np.concatenate([y, y_test], axis = 0)
+        
+        return X_train, y_train, X_test, y_test
+            
+        
 
 
-class NCBIDataLoader():
+class NCBIDataDownloaderPrep:
     def __init__(self, name):
         
         self.name = name
-        
         # keys are locust_tag
         # not really a good way to handle error!
         self.genes = self._prep_genome(name=name)
@@ -459,11 +526,14 @@ class NCBIDataLoader():
         elif return_type == 'csv':
             # return 0 
             # print a hgdtb like csv file
+            if not os.path.isdir(PREPPED_SEQUENCES_FOLDER):
+                os.makedirs(PREPPED_SEQUENCES_FOLDER)
+                print("creating folder : ", PREPPED_SEQUENCES_FOLDER)
             df = pd.DataFrame.from_dict(self.genes, orient='index')
             print('printing csv... saving as {}.csv'.format(self.name))
             df.drop(columns=['g_count','a_count','c_count','t_count', 'rel_freq', '12_symbols', '48_symbols', 'cub','sequence','std_cub', 'RSCU', 'RFC', 'AA_Content_mean'], inplace=True)
             df['Mah'] = [float(x) for x in df['Mah']]
-            df.to_csv('{}.csv'.format(self.name))
+            df.to_csv(PREPPED_SEQUENCES_FOLDER+'{}.csv'.format(self.name))
             print('done printing')
             return 0
         
@@ -496,16 +566,27 @@ class NCBIDataLoader():
 
 ## for testing
 
-class TestNCBIDataLoader(unittest.TestCase):
+class TestNCBIDataLoaderPrep(unittest.TestCase):
+    
+    def test_dataloader(self):
+        dataloader = NCBIDataLoader('partition_file/class_chlorobia.csv')
+        x1,y1,x2,y2 = dataloader.dataset_prep()
+        assert len(x1)!=0, "error!"
     
     
-    def test_init_positive(self):
-        genome = NCBIDataLoader('ecoli')
-        assert genome.genes is not None, "Somthing is wrong when reading file"
+    #def test_init_positive(self):
+    #    genome = NCBIDataDownloaderPrep('AE000657')
+    #    assert genome.genes is not None, "Somthing is wrong when reading file"
     
-    def test_prep_genome(self):
-        genome = NCBIDataLoader('ecoli')
-        assert len(genome) != 0, "cannot access length"
+    #def test_prep_genome(self):
+    #    genome = NCBIDataDownloaderPrep('AL009126')
+    #    assert len(genome) != 0, "cannot access length"
+        
+    #def test_prep_genome_csv_out(self):
+    #    genome = NCBIDataDownloaderPrep('AL009126')
+    #    test = genome.to_HGTDB('csv')
+    #    assert test == 0, 'something went wrong in creating csv'
+        
         
     
 
