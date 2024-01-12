@@ -62,17 +62,16 @@ class NCBIDataLoader:
         self._check_prepped_file_availability()
         self.data_type = data_type
         
-        
-        
-        
     
     def _check_prepped_file_availability(self):
         self.partition_frame  = pd.read_csv(self.partition_file)
         for i in range(len(self.partition_frame)):
             identifier = self.partition_frame.loc[i,'GenBank accession number']
+            link = self.partition_frame.loc[i,'link']
             # check if file is prepped
             if not os.path.isfile(PREPPED_SEQUENCES_FOLDER+identifier+'.csv'):
-                temp_downloader = NCBIDataDownloaderPrep(identifier)
+                print(f'Getting {identifier}')
+                temp_downloader = NCBIDataDownloaderPrep(identifier, link)
                 temp_downloader.to_HGTDB('csv')
     
     def dataset_prep(self):
@@ -97,7 +96,6 @@ class NCBIDataLoader:
         X_test = np.array([]).reshape(0,columns)
         y_test = np.array([]).reshape(0,)
         
-        # TODO: Add sleep here!
         for i in range(len(self.partition_frame)):
             identifier = self.partition_frame.loc[i,'GenBank accession number']
             temp_data = pd.read_csv(PREPPED_SEQUENCES_FOLDER+identifier+'.csv', index_col=0)
@@ -124,18 +122,18 @@ class NCBIDataLoader:
 
 
 class NCBIDataDownloaderPrep:
-    def __init__(self, name):
+    def __init__(self, name, link):
         
         self.name = name
+        self.link = link
         # keys are locust_tag
         # not really a good way to handle error!
         self.genes = self._prep_genome(name=name)
         if self.genes == 0:
-            self._download_genome(name=name)
+            # self._download_genome(name=name)
+            self._download_genome(self.name, self.link)
             self.genes = self._prep_genome(name=name)
         
-        
-        #self.genes = pd.DataFrame.from_dict(self._prep_genome(name=name), orient='index')
         
         #init metrics to 0
         self.complete_sequence = ''
@@ -195,7 +193,7 @@ class NCBIDataDownloaderPrep:
         esummary_record = Entrez.read(esummary_handle)
         return esummary_record
     
-    def _download_genome(self, name):
+    def _download_genome(self, name, link):
         #def get_assemblies(term, download=True, path='sequence_files'):
         """Download genbank assemblies for a given search term.
         https://dmnfarrell.github.io/bioinformatics/assemblies-genbank-python
@@ -204,35 +202,44 @@ class NCBIDataDownloaderPrep:
             download: whether to download the results
             path: folder to save to
         """
+        
+        if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
+            #download link
+            print(f'downloading {name}, at {link} ')
+            urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
+            with gzip.open(SEQUENCES_FOLDER+f'/{name}.fna.gz', 'rb') as f_in:
+                with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
 
         #provide your own mail here
-        Entrez.email = "adjie.salman@stud.uni-due.de"
-        Entrez.api_key = "726c2709d1827c981a38403d4a7d99e5cf08"
-        handle = Entrez.esearch(db="assembly", term=name, retmax='200')
-        record = Entrez.read(handle)
-        ids = record['IdList']
-        print (f'found {len(ids)} ids')
-        links = []
-        for id in ids:
+        #Entrez.email = "adjie.salman@stud.uni-due.de"
+        #Entrez.api_key = "726c2709d1827c981a38403d4a7d99e5cf08"
+        #handle = Entrez.esearch(db="assembly", term=name, retmax='200')
+        #record = Entrez.read(handle)
+        #ids = record['IdList']
+        #print (f'found {len(ids)} ids')
+        #links = []
+        #for id in ids:
             #get summary
-            summary = self._get_assembly_summary(id)
+        #    summary = self._get_assembly_summary(id)
             #get ftp link
             # for now going forward no refseq files are going to be used!
-            url = summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_GenBank']
-            if url == '':
-                continue
-            label = os.path.basename(url)
+        #    url = summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_GenBank']
+        #    if url == '':
+        #        continue
+        #    label = os.path.basename(url)
             #get the fasta link - change this to get other formats
-            link = os.path.join(url,label+'_cds_from_genomic.fna.gz')
-            print (link)
-            links.append(link)
-            if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
+        #    link = os.path.join(url,label+'_cds_from_genomic.fna.gz')
+        #    print (link)
+        #    links.append(link)
+        #    if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
                 #download link
-                urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
-                with gzip.open(SEQUENCES_FOLDER+f'/{name}.fna.gz', 'rb') as f_in:
-                    with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
-                        shutil.copyfileobj(f_in, f_out)
-                os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
+        #        urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
+        #        with gzip.open(SEQUENCES_FOLDER+f'/{name}.fna.gz', 'rb') as f_in:
+        #            with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
+        #                shutil.copyfileobj(f_in, f_out)
+        #        os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
         # now no need to return!
         # return links
         
