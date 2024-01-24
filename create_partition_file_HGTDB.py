@@ -2,8 +2,10 @@ import os
 import random
 from collections import deque
 import csv
+import argparse
 
 ROOT_FOLDER = 'data/HGTDB/preprocessed_data'
+SAVE_FOLDER = 'partition_file/'
 
 '''
 This script partition the whole hgtdb into 6 parts
@@ -11,7 +13,31 @@ This script partition the whole hgtdb into 6 parts
 partition into train:valid:test (4:1:1)
 '''
 
-def main():
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-n',
+        '--name',
+        type = str,
+        default = 'HGTDB_CV',
+        help = 'Name of cv'
+    )
+    parser.add_argument(
+        '--valid', 
+        dest='flag', 
+        action='store_true',
+        help='Set the flag value to True.'
+    )
+    parser.add_argument(
+        '--no-valid', 
+        dest='flag', 
+        action='store_false',
+        help='Set the flag value to False.'
+    )
+    parser.set_defaults(flag=True)
+    return parser.parse_args()
+
+def main(name, valid):
     if not os.path.isdir(ROOT_FOLDER):
         print('ROOT folder not found')
         print('Please download HGTDB')
@@ -44,10 +70,12 @@ def main():
             count_block+=1
 
     # check_dist(temp_holder)
-    tag_distribution(temp_holder, block_indices)
+    print(name)
+    print(valid)
+    tag_distribution(temp_holder, block_indices,name,valid)
     
 
-def tag_distribution(holder, block_indices):
+def tag_distribution(holder, block_indices, name, valid):
     indices = deque(block_indices)
     for i in range(len(block_indices)):
         partition_lod = []
@@ -58,9 +86,13 @@ def tag_distribution(holder, block_indices):
                     'partition': 'test'
                 }
             elif indices[1] == block:
+                if valid:
+                    partition='valid'
+                else:
+                    partition='train'
                 temp_dict = {
                     'file': files.replace('.csv', ''),
-                    'partition': 'valid'
+                    'partition': partition
                 }
             else:
                 temp_dict = {
@@ -69,7 +101,7 @@ def tag_distribution(holder, block_indices):
                 }
             partition_lod.append(temp_dict)
             
-        with open(f'partition_file/HGTDB_cross_fold_partition_{i}.csv', 'w', newline='') as output_file:
+        with open(f'{SAVE_FOLDER}{name}_{i}.csv', 'w', newline='') as output_file:
             dict_writer = csv.DictWriter(output_file, ['file','partition'])
             dict_writer.writeheader()
             dict_writer.writerows(partition_lod)
@@ -121,5 +153,7 @@ def check_dist(holder):
     print(holder)
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    print(args.flag)
+    main(args.name, args.flag)
     
