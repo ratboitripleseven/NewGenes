@@ -20,7 +20,11 @@ import torch.optim as optim
 
 
 class BinaryClassifierDLBase:
-    def __init__(self, name, algotrithm_type, algorithm, loss, optimizer, learning_rate, train_dataset, valid_dataset, test_dataset, mode='train'):
+    def __init__(self, name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode='train'):
+        # params is a dict! containg
+        # - loss
+        # - optimizer and learning rate
+        
         # does not need algorithm_type
         # algorithm is basically model!
         now = datetime.now()
@@ -42,12 +46,11 @@ class BinaryClassifierDLBase:
         self.algorithm = algorithm
         self.loss = None
         self.optimizer = None
-        self.learning_rate = learning_rate
         
-        
-            
-        self._set_dl_loss(loss)
-        self._set_dl_optimizer(optimizer)
+        self._set_params(**params)
+        # self.learning_rate = learning_rate    
+        #self._set_dl_loss(loss)
+        #self._set_dl_optimizer(optimizer)
         
         # load model and optim state
         if mode  == 'eval':
@@ -82,15 +85,24 @@ class BinaryClassifierDLBase:
         self.valid_loader = torch.utils.data.DataLoader(dataset=self.valid_dataset,batch_size=batch_size,shuffle=False)
         self.test_loader = torch.utils.data.DataLoader(dataset=self.test_dataset,batch_size=batch_size,shuffle=False)
         
-    def _set_dl_loss(self, loss):
+    def _set_params(self, loss, optimizer, learning_rate):
+        # params here are defined as 
+        # - loss
+        # - optimizer and its learning rate
+        
+        self._set_dl_loss(loss)
+        self._set_dl_optimizer(optimizer, learning_rate)
+    
+    
+    def _set_dl_loss(self, loss='BCE'):
         if loss == 'BCE':
             self.loss = nn.BCELoss()
         else:
             raise ValueError(f'Unknown loss: {loss}')
         
-    def _set_dl_optimizer(self, optimizer):
+    def _set_dl_optimizer(self, optimizer='Adam', learning_rate=0.01):
         if optimizer == 'Adam':
-            self.optimizer = optim.Adam(self.algorithm.parameters(), lr=self.learning_rate)
+            self.optimizer = optim.Adam(self.algorithm.parameters(), lr=learning_rate)
         else:
             raise ValueError(f'Unknown optimizer {optimizer}')
         
@@ -129,9 +141,9 @@ class BinaryClassifierDLBase:
         
         
 class BinaryClassifierDLSequential(BinaryClassifierDLBase):
-    def __init__(self, name, algotrithm_type, algorithm, loss, optimizer, learning_rate, train_dataset, valid_dataset, test_dataset, mode='train'):
+    def __init__(self, name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode='train'):
         print('INTIALIZING DL')
-        super().__init__(name, algotrithm_type, algorithm, loss, optimizer, learning_rate, train_dataset, valid_dataset, test_dataset, mode)
+        super().__init__(name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode)
         
     def model_train(self, epochs = 15):
         
@@ -252,5 +264,3 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
         print(f'test f1: {f1_score}')
         print('Confusion matrix:')
         print(conf_mat)
-
-    

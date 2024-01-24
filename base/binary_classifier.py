@@ -23,7 +23,7 @@ TODO: Model loading
 
 
 class BinaryClassifier:
-    def __init__(self, name, algotrithm_type, algorithm, dataloader, mode='train'):
+    def __init__(self, name, algotrithm_type, algorithm, dataloader,params=None, mode='train'):
         
         now = datetime.now()
         self.dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
@@ -41,6 +41,10 @@ class BinaryClassifier:
         
         if mode == 'train':
             self.algorithm = algorithm
+            # set params by kwargs
+            if params is not None:
+                self.algorithm.set_params(**params)
+            
         elif mode  == 'eval':
             self.algorithm = self._load_model()
 
