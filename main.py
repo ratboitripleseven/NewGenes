@@ -6,6 +6,7 @@ import logging
 #import models
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier
 from dl_algo.long_short_term_memory import *
 
 #import dataloaders
@@ -13,7 +14,9 @@ from data_loader.HGTDB_data_loader import HGTDBDataLoader, HGTDBDatasetSequentia
 from data_loader.NCBI_data_loader import NCBIDataLoader
 
 #import bases
-from base.binary_classifier import BinaryClassifier, BinaryClassifierDL
+from base.binary_classifier import BinaryClassifier
+from base.binary_classifier_dl import BinaryClassifierDLSequential
+
 
 
 ROOT_CONFIGURATION_FOLDER = 'configuration/'
@@ -47,8 +50,8 @@ def load_algorithm(algorithm_type, algorithm):
             return LGBMClassifier()
         elif algorithm == 'XGBOOST':
             return XGBClassifier()
-        elif algorithm == 'HGB':
-            raise NotImplementedError('Not yet implemented')
+        elif algorithm == 'HGBC':
+            raise HistGradientBoostingClassifier()
         else:
             raise ValueError(f'no such thing as {algorithm}')
     elif algorithm_type == 'd':
@@ -62,6 +65,9 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'LSTM_v4':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_v4(4,100,1)
+        elif algorithm == 'LSTM_v5':
+            # need to make this configurable for now leave it
+            return LSTMHGTTagger_v5(4,100,1)
         else:
             raise ValueError(f'no such thing as {algorithm}')
 
@@ -83,16 +89,12 @@ def load_type( model_type, name, algorithm_type,  algorithm, dataloader,params, 
     if algorithm_type == 'c':
         # for classical algorithm
         
-        if model_type == 'binary_classifier':
-            return BinaryClassifier(name, algorithm_type, algorithm, dataloader, mode)
+        return BinaryClassifier(name, algorithm_type, algorithm, dataloader,params, mode)
     elif algorithm_type == 'd':
         # for deep learning
-        # TODO: Params are still not fully used!
-        if model_type == 'binary_classifier':
-            train,valid,test = dataloader
-            # loss = 'BCE'
-            # optimizer = 'Adam'
-            return BinaryClassifierDL(name, algorithm_type, algorithm, params['loss'], params['optimizer'], train,valid,test, mode)
+        train,valid,test = dataloader
+        # return BinaryClassifierDLSequential(name, algorithm_type, algorithm, params['loss'], params['optimizer'],params['learning_rate'], train,valid,test, mode)
+        return BinaryClassifierDLSequential(name, algorithm_type, algorithm, params, train, valid, test, mode)
     
     
     
@@ -104,9 +106,10 @@ def assert_config(args):
     list_of_algorithm = [
         'LGBM',
         'XGBOOST',
-        'HGB',
+        'HGBC',
         'LSTM_v3',
-        'LSTM_v4']
+        'LSTM_v4',
+        'LSTM_v5']
     list_of_algorithm_types = [
         'c',
         'd'
@@ -195,7 +198,7 @@ def main():
         test_model.model_eval()
         test_model.save_model()
     elif args.mode == 'eval':
-        test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'],algorithm, dataloader, 'eval')
+        test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'eval')
         test_model.model_eval()
     
     
