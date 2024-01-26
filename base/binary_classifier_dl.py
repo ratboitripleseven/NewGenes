@@ -81,6 +81,7 @@ class BinaryClassifierDLBase:
         #self._print_data_statistics()
         
     def _set_data(self,  batch_size = 3):
+        print(f'Batch size: {batch_size}')
         self.train_loader = torch.utils.data.DataLoader(dataset=self.train_dataset,batch_size=batch_size,shuffle=False)
         self.valid_loader = torch.utils.data.DataLoader(dataset=self.valid_dataset,batch_size=batch_size,shuffle=False)
         self.test_loader = torch.utils.data.DataLoader(dataset=self.test_dataset,batch_size=batch_size,shuffle=False)
@@ -216,8 +217,11 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
 
     
     def model_eval(self):
-        y_true_list = []
-        y_pred_list = []
+        #y_true_list = []
+        #y_pred_list = []
+        y_pred_true = []
+        list_input_sizes = []
+        
         
         print(len(self.test_loader))
         for (idx, data) in enumerate(self.test_loader):
@@ -232,7 +236,6 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 #accuracy = (output.round() == targets).float().mean()
                 #print(accuracy)
                 
-
             targets = torch.squeeze(targets,2)
             # the squeeze here is needed and fine
             output = torch.squeeze(output,2)
@@ -241,26 +244,49 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
             
 
             for i in range(targets.size(0)):
-                y_true_list = [*y_true_list, *targets[i].detach().numpy()]
-                print(f'{i} {output}')
-                y_pred_list = [*y_pred_list, *output[i].detach().round().numpy()]
+                #y_true_list = [*y_true_list, *targets[i].detach().numpy()]
+                #print(f'{i} {output}')
+                #y_pred_list = [*y_pred_list, *output[i].detach().round().numpy()]
+                list_input_sizes.append(input_sizes[i])
+                # collected are all padded data!
+                y_pred_true.append((targets[i].detach().numpy().tolist(), output[i].detach().round().numpy().tolist()))
                 
+        for idx in range(len(y_pred_true)):
+            print('***'*20)
+            print(f'Test genome no {idx} of length: {list_input_sizes[idx]} ')
+            slice_index = list_input_sizes[idx]
+            targs, preds = y_pred_true[idx]
+            # slice the padding!
+            targs, preds = targs[:slice_index], preds[:slice_index]
+            #print(len(targs))
+            acc = metrics.accuracy_score(targs, preds)
+            prec = metrics.precision_score(targs, preds)
+            reca = metrics.recall_score(targs, preds)
+            f1_score = metrics.f1_score(targs, preds)
+            conf_mat = metrics.confusion_matrix(targs, preds)
+            print(f'test acc: {acc}')
+            print(f'test prec: {prec}')
+            print(f'test recall: {reca}')
+            print(f'test f1: {f1_score}')
+            print('Confusion matrix:')
+            print(conf_mat)
+            
         
-        print('***'*20)
-        print(f'Trained for {self.epoch} epochs')
-        print(f'Support: {len(y_pred_list)}')
-        print(f'HGTs predicted: {y_pred_list.count(1)}')
-        print(f'HGTs actual: {y_true_list.count(1)}')
-        print('***'*20)
+        #print('***'*20)
+        #print(f'Trained for {self.epoch} epochs')
+        #print(f'Support: {len(y_pred_list)}')
+        #print(f'HGTs predicted: {y_pred_list.count(1)}')
+        #print(f'HGTs actual: {y_true_list.count(1)}')
+        #print('***'*20)
         # print('-*-'*20)
-        acc = metrics.accuracy_score(y_true_list, y_pred_list)
-        prec = metrics.precision_score(y_true_list, y_pred_list)
-        reca = metrics.recall_score(y_true_list, y_pred_list)
-        f1_score = metrics.f1_score(y_true_list, y_pred_list)
-        conf_mat = metrics.confusion_matrix(y_true_list, y_pred_list)
-        print(f'test acc: {acc}')
-        print(f'test prec: {prec}')
-        print(f'test recall: {reca}')
-        print(f'test f1: {f1_score}')
-        print('Confusion matrix:')
-        print(conf_mat)
+        #acc = metrics.accuracy_score(y_true_list, y_pred_list)
+        #prec = metrics.precision_score(y_true_list, y_pred_list)
+        #reca = metrics.recall_score(y_true_list, y_pred_list)
+        #f1_score = metrics.f1_score(y_true_list, y_pred_list)
+        #conf_mat = metrics.confusion_matrix(y_true_list, y_pred_list)
+        #print(f'test acc: {acc}')
+        #print(f'test prec: {prec}')
+        #print(f'test recall: {reca}')
+        #print(f'test f1: {f1_score}')
+        #print('Confusion matrix:')
+        #print(conf_mat)
