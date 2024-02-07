@@ -207,6 +207,8 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
         # set dataset according to data type
         if data_type == 'A':
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","SD1","SD2","SD3","SDT","Mah"]) # only GC1,GC2,GC3,GCT
+        elif data_type == 'B':
+            df = df.drop(columns=["FunctionCode","Strand","Length","SD1","SD2","SD3","SDT"]) # only GC1,GC2,GC3,GCT,Mah,AADev
 
         
         # count nulls!
@@ -297,6 +299,10 @@ class TestHGTDBDataLoaderPrep(unittest.TestCase):
         x1,y1,x2,y2 = dataloader.dataset_prep()
         assert len(x1)!=0, "error!"
     
+    def test_sequential_dataloader(self):
+        hgtdb_train = HGTDBDatasetSequential('B','partition_file/HGTDB_ALL_trisplit.csv', 'train')
+        print(hgtdb_train[0])
+        assert len(hgtdb_train)!=0, "error"
     
     #def test_init_positive(self):
     #    genome = NCBIDataDownloaderPrep('AE000657')
