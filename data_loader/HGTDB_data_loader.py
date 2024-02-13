@@ -209,6 +209,9 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","SD1","SD2","SD3","SDT","Mah"]) # only GC1,GC2,GC3,GCT
         elif data_type == 'B':
             df = df.drop(columns=["FunctionCode","Strand","Length","SD1","SD2","SD3","SDT"]) # only GC1,GC2,GC3,GCT,Mah,AADev
+        elif data_type == 'C':
+            # C is basically A but padding is with 0.666 instead of 0
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","SD1","SD2","SD3","SDT","Mah"]) # only GC1,GC2,GC3,GCT
 
         
         # count nulls!
@@ -271,7 +274,10 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
             
         # pad 'sequences'
         # padded stuff are tagged as 0!
-        self.data_x = pad_sequence(self.data_x, batch_first=True)
+        if self.data_type == 'C':
+            self.data_x = pad_sequence(self.data_x, batch_first=True, padding_value=0.666)
+        else:
+            self.data_x = pad_sequence(self.data_x, batch_first=True)
         self.data_y = pad_sequence(self.data_y, batch_first=True)
 
     def __getitem__(self, ind):
@@ -300,7 +306,7 @@ class TestHGTDBDataLoaderPrep(unittest.TestCase):
         assert len(x1)!=0, "error!"
     
     def test_sequential_dataloader(self):
-        hgtdb_train = HGTDBDatasetSequential('B','partition_file/HGTDB_ALL_trisplit.csv', 'train')
+        hgtdb_train = HGTDBDatasetSequential('C','partition_file/HGTDB_ALL_trisplit.csv', 'train')
         print(hgtdb_train[0])
         assert len(hgtdb_train)!=0, "error"
     
