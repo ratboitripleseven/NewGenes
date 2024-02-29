@@ -212,7 +212,13 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
         elif data_type == 'C':
             # C is basically A but padding is with 0.666 instead of 0
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","SD1","SD2","SD3","SDT","Mah"]) # only GC1,GC2,GC3,GCT
-
+        elif data_type == 'D':
+            # So z score is basically what is calculated for sd1,2,3,t
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
+        elif data_type == 'E':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
         
         # count nulls!
         #df.bfill(inplace=True)
@@ -242,9 +248,17 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
         #print(null_count)
         #print(na_count)
         
-        # return as numpy array
+        # preprocess i.e. normalize and shit
         # labels are not affected since there is only two options 0,1
-        df=(df-df.min())/(df.max()-df.min())
+        if data_type == 'D':
+            pass
+        elif data_type == 'E':
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+        else:
+            df=(df-df.min())/(df.max()-df.min())
         array = df.values
         x = array[:,0:-1]
         y = array[:,-1]
