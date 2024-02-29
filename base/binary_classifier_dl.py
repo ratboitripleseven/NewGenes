@@ -27,6 +27,7 @@ class BinaryClassifierDLBase:
         
         # does not need algorithm_type
         # algorithm is basically model!
+        self.logger = None
         now = datetime.now()
         self.dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
         self.name = name
@@ -42,6 +43,8 @@ class BinaryClassifierDLBase:
         else:
             print(f'Saving in {self.save_folder_root}')
         
+        self._init_logger()
+        
         self.epoch = 0
         self.algorithm = algorithm
         self.loss = None
@@ -54,6 +57,7 @@ class BinaryClassifierDLBase:
         
         # load model and optim state
         if mode  == 'eval':
+            self.logger.info("Model Loaded") 
             self._load_model()
             # self.algorithm = self._load_model()
             
@@ -107,7 +111,20 @@ class BinaryClassifierDLBase:
         else:
             raise ValueError(f'Unknown optimizer {optimizer}')
         
-        
+    def _init_logger(self):
+        # create log folder to save logging
+        folder_name = os.path.join(self.save_folder_root,self.name)
+        if not os.path.isdir(folder_name):
+            os.makedirs(folder_name)
+            print("creating folder : ", folder_name)
+            
+            
+        # init logger
+        #logging.basicConfig(level=logging.INFO, filename=self.save_folder_root+"logs/"+self.name,filemode="w")
+        logging.basicConfig(level=logging.INFO, filename=os.path.join(folder_name,'log_'+'BinaryClassifier'),filemode="w")
+        self.logger=logging.getLogger()
+        self.logger.info('ACCESS:')
+        self.logger.info(self.dt_string)
     
         
     def save_model(self):
@@ -143,11 +160,11 @@ class BinaryClassifierDLBase:
         
 class BinaryClassifierDLSequential(BinaryClassifierDLBase):
     def __init__(self, name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode='train'):
-        print('INTIALIZING DL')
+        print('INTIALIZING DL SEQUENTIAL')
         super().__init__(name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode)
         
     def model_train(self, epochs = 15):
-        
+        self.logger.info('START OF TRAINING')
         for epoch in range(epochs):
             self.epoch += 1
             print(f'training epoch:{self.epoch}')
@@ -214,6 +231,9 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 
             print(f'acculumative loss: {acc_loss/len(self.train_loader)}')
             print(f'acculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
+            self.logger.info(f'epoch: {self.epoch}')
+            self.logger.info(f'\tacculumative loss: {acc_loss/len(self.train_loader)}')
+            self.logger.info(f'\tacculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
 
     
     def model_eval(self):
@@ -221,8 +241,9 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
         #y_pred_list = []
         y_pred_true = []
         list_input_sizes = []
+        y_pred_not_rounded = []
         
-        
+        self.logger.info('START OF EVAL')
         print(len(self.test_loader))
         for (idx, data) in enumerate(self.test_loader):
             self.algorithm.eval()
@@ -250,14 +271,17 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 list_input_sizes.append(input_sizes[i])
                 # collected are all padded data!
                 y_pred_true.append((targets[i].detach().numpy().tolist(), output[i].detach().round().numpy().tolist()))
+                y_pred_not_rounded.append( output[i].detach().numpy().tolist())
                 
         for idx in range(len(y_pred_true)):
             print('***'*20)
             print(f'Test genome no {idx} of length: {list_input_sizes[idx]} ')
             slice_index = list_input_sizes[idx]
             targs, preds = y_pred_true[idx]
+            preds_not_rounded =y_pred_not_rounded[idx]
             # slice the padding!
             targs, preds = targs[:slice_index], preds[:slice_index]
+            preds_not_rounded = preds_not_rounded[:slice_index]
             #print(len(targs))
             acc = metrics.accuracy_score(targs, preds)
             prec = metrics.precision_score(targs, preds)
@@ -268,8 +292,17 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
             print(f'test prec: {prec}')
             print(f'test recall: {reca}')
             print(f'test f1: {f1_score}')
+            print(f'preds:\n\t{preds_not_rounded}')
             print('Confusion matrix:')
             print(conf_mat)
+            
+            self.logger.info(f'test acc: {acc}')
+            self.logger.info(f'test prec: {prec}')
+            self.logger.info(f'test recall: {reca}')
+            self.logger.info(f'test f1: {f1_score}')
+            self.logger.info(f'preds:\n\t{preds_not_rounded}')
+            self.logger.info('Confusion matrix:')
+            self.logger.info(conf_mat)
             
         
         #print('***'*20)
