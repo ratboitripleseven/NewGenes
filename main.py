@@ -68,6 +68,16 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'LSTM_v5':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_v5(4,100,1)
+            # return LSTMHGTTagger_v5(6,6,1)
+        elif algorithm == 'LSTM_v6':
+            # need to make this configurable for now leave it
+            return LSTMHGTTagger_v6(4,10,1)
+        elif algorithm == 'BiLSTM_v6':
+            # need to make this configurable for now leave it
+            return BiLSTMHGTTagger_v6(4,10,1)
+        elif algorithm == 'LSTM_nofc_v1':
+            # need to make this configurable for now leave it
+            return LSTMHGTTagger_nofc_v1(4,1)
         else:
             raise ValueError(f'no such thing as {algorithm}')
 
@@ -78,7 +88,7 @@ def load_dataloader(dataloader, partition_file, data_type):
         return NCBIDataLoader(partition_file, data_type)
     elif dataloader == 'sequential':
         # currently working only with partition_file/HGTDB_firmicutes_trisplit.csv
-        # and data type only A!
+        # and data type only A and B!
         hgtdb_train = HGTDBDatasetSequential(data_type,partition_file, 'train')
         hgtdb_valid = HGTDBDatasetSequential(data_type,partition_file, 'valid')
         hgtdb_test = HGTDBDatasetSequential(data_type,partition_file, 'test')
@@ -109,7 +119,10 @@ def assert_config(args):
         'HGBC',
         'LSTM_v3',
         'LSTM_v4',
-        'LSTM_v5']
+        'LSTM_v5',
+        'LSTM_v6',
+        'BiLSTM_v6',
+        'LSTM_nofc_v1']
     list_of_algorithm_types = [
         'c',
         'd'
@@ -184,6 +197,7 @@ def main():
     configuration, args = assert_config(parse_args())
     
     algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
+    print(algorithm)
     dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
     
     
