@@ -6,6 +6,7 @@ import unittest
 import torch
 from sklearn import preprocessing
 from torch.nn.utils.rnn import pad_sequence
+import math
 
 # TODO:Find better way to do the sys path thing.. this is bound to be problematic!!!
 sys.path.append("../../../../NewGenes")
@@ -219,6 +220,11 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
             # So z score is basically what is calculated for sd1,2,3,t
             # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
+        elif data_type == 'F':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # z score for mah is added here
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT"]) # only SD1,SD2,SD3,SDT, Mah
         
         # count nulls!
         #df.bfill(inplace=True)
@@ -257,6 +263,34 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
             df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
             df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
             df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+        elif data_type == 'F':
+            # need to reindex!
+            df=df.reset_index(drop=True)
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+            
+            # calculate mean mah
+            mean_Mah = df['Mah'].sum()/len(df)
+            # calculate sdmah
+            sum_of_mah_diffs = 0
+            for gene_idx in range(len(df)):
+                mah_diff = df.loc[gene_idx, 'Mah'] - mean_Mah
+                squared_mah_diff = mah_diff * mah_diff
+                sum_of_mah_diffs = sum_of_mah_diffs + squared_mah_diff
+                
+            sd_mah = math.sqrt(sum_of_mah_diffs/len(df))
+            
+            # calculate deviation for each val
+            standard_deviation = []
+            for x in df['Mah']:
+                standard_deviation.append( (x - mean_Mah)/ sd_mah )
+                
+            # cut off and divide by 2
+            standard_deviation_standardized = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in standard_deviation]
+            # replace mah values (i think this is fine)
+            df['Mah'] = standard_deviation_standardized
         else:
             df=(df-df.min())/(df.max()-df.min())
         array = df.values
