@@ -72,6 +72,9 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'LSTM_v6':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_v6(4,10,1)
+        elif algorithm == 'LSTM_v6_1':
+            # need to make this configurable for now leave it
+            return LSTMHGTTagger_v6(5,10,1)
         elif algorithm == 'BiLSTM_v6':
             # need to make this configurable for now leave it
             return BiLSTMHGTTagger_v6(4,10,1)
@@ -121,6 +124,7 @@ def assert_config(args):
         'LSTM_v4',
         'LSTM_v5',
         'LSTM_v6',
+        'LSTM_v6_1',
         'BiLSTM_v6',
         'LSTM_nofc_v1']
     list_of_algorithm_types = [
