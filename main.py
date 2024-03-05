@@ -10,12 +10,12 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from dl_algo.long_short_term_memory import *
 
 #import dataloaders
-from data_loader.HGTDB_data_loader import HGTDBDataLoader, HGTDBDatasetSequential
+from data_loader.HGTDB_data_loader import HGTDBDataLoader, HGTDBDatasetSequential, HGTDBDatasetSequential_v2
 from data_loader.NCBI_data_loader import NCBIDataLoader
 
 #import bases
 from base.binary_classifier import BinaryClassifier
-from base.binary_classifier_dl import BinaryClassifierDLSequential
+from base.binary_classifier_dl import BinaryClassifierDLSequential, BinaryClassifierDLNonSequential
 
 
 
@@ -54,7 +54,7 @@ def load_algorithm(algorithm_type, algorithm):
             raise HistGradientBoostingClassifier()
         else:
             raise ValueError(f'no such thing as {algorithm}')
-    elif algorithm_type == 'd':
+    elif algorithm_type in ['d','e']:
         # for deep learning
         # TODO: Params could be usefule here...
         # Models should be configurable easier way!
@@ -72,6 +72,9 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'LSTM_v6':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_v6(4,10,1)
+        elif algorithm == 'LSTM_unpadded_v6':
+            # need to make this configurable for now leave it
+            return LSTMHGTTagger_unpadded_v6(4,10,1)
         elif algorithm == 'LSTM_v6_1':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_v6(5,10,1)
@@ -96,6 +99,13 @@ def load_dataloader(dataloader, partition_file, data_type):
         hgtdb_valid = HGTDBDatasetSequential(data_type,partition_file, 'valid')
         hgtdb_test = HGTDBDatasetSequential(data_type,partition_file, 'test')
         return hgtdb_train, hgtdb_valid, hgtdb_test
+    elif dataloader == 'nonsequential':
+        # currently working only with partition_file/HGTDB_firmicutes_trisplit.csv
+        # and data type only A and B!
+        hgtdb_train = HGTDBDatasetSequential_v2(data_type,partition_file, 'train')
+        hgtdb_valid = HGTDBDatasetSequential_v2(data_type,partition_file, 'valid')
+        hgtdb_test = HGTDBDatasetSequential_v2(data_type,partition_file, 'test')
+        return hgtdb_train, hgtdb_valid, hgtdb_test
         
     
 def load_type( model_type, name, algorithm_type,  algorithm, dataloader,params, mode='train'):
@@ -108,6 +118,11 @@ def load_type( model_type, name, algorithm_type,  algorithm, dataloader,params, 
         train,valid,test = dataloader
         # return BinaryClassifierDLSequential(name, algorithm_type, algorithm, params['loss'], params['optimizer'],params['learning_rate'], train,valid,test, mode)
         return BinaryClassifierDLSequential(name, algorithm_type, algorithm, params, train, valid, test, mode)
+    elif algorithm_type == 'e':
+        # for deep learning non sequential
+        train,valid,test = dataloader
+        # return BinaryClassifierDLSequential(name, algorithm_type, algorithm, params['loss'], params['optimizer'],params['learning_rate'], train,valid,test, mode)
+        return BinaryClassifierDLNonSequential(name, algorithm_type, algorithm, params, train, valid, test, mode)
     
     
     
@@ -126,10 +141,12 @@ def assert_config(args):
         'LSTM_v6',
         'LSTM_v6_1',
         'BiLSTM_v6',
-        'LSTM_nofc_v1']
+        'LSTM_nofc_v1',
+        'LSTM_unpadded_v6']
     list_of_algorithm_types = [
         'c',
-        'd'
+        'd',
+        'e'
     ]
     list_of_model_types = [
         'binary_classifier'
@@ -137,7 +154,8 @@ def assert_config(args):
     list_of_dataset = [
         'HGTDB',
         'NCBI',
-        'sequential'
+        'sequential',
+        'nonsequential'
     ]
     list_of_data_type = ['A','B','C','D','E','F']
     list_of_mode = ['train', 'eval']
@@ -211,7 +229,7 @@ def main():
         test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'])
         if configuration['Model']['algorithm_type'] == 'c':
             test_model.model_train()
-        elif configuration['Model']['algorithm_type'] == 'd':
+        elif configuration['Model']['algorithm_type'] in ['d','e']:
             test_model.model_train(configuration['Model']['epochs'])
         test_model.model_eval()
         test_model.save_model()
