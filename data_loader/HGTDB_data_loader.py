@@ -344,6 +344,52 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
         return len(self.data_x)
         
         
+class HGTDBDatasetSequential_v2(HGTDBDatasetSequential):
+    '''
+    Inherits from HGTDBDatasetSequential
+    This is for paritioning based on genes
+    does not require info on how long the genomes are since no padding
+    i.e. not processed by pad packed
+    '''
+    def __init__(self, data_type, partition_file, partition):
+        super().__init__(data_type, partition_file, partition)
+        
+    def _init_dataset(self):
+        '''
+        '''
+        partition_frame = pd.read_csv(self.partition_file)
+        partition_frame = partition_frame[partition_frame['partition']==self.partition].reset_index(drop=True)
+        
+        x_set= []
+        y_set = []
+        
+        self.max_sequence = 0
+        
+        for i in range(len(partition_frame)):
+            x,y = self._load_single_file(partition_frame.loc[i,'file'], self.data_type)
+        
+                
+            self.data_x.extend(torch.from_numpy(np.float32(x)))
+            self.data_y.extend(torch.from_numpy(np.float32(y)))
+            #self.data_seq_length.extend(torch.tensor(len(x)))
+            
+    def __getitem__(self, ind):
+        '''
+        torch data loader does not accept nones!
+        '''
+        datum = self.data_x[ind]
+        label = self.data_y[ind]
+        seq_length = None
+        
+        output = {
+            "datum" : datum,
+            #"seq_length" : seq_length,
+            "label" : label
+        }
+        return output
+
+            
+        
                     
 
 class TestHGTDBDataLoaderPrep(unittest.TestCase):
@@ -354,9 +400,28 @@ class TestHGTDBDataLoaderPrep(unittest.TestCase):
         assert len(x1)!=0, "error!"
     
     def test_sequential_dataloader(self):
-        hgtdb_train = HGTDBDatasetSequential('C','partition_file/HGTDB_ALL_trisplit.csv', 'train')
+        hgtdb_train = HGTDBDatasetSequential('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        #print(hgtdb_train[0])
+        assert len(hgtdb_train)!=0, "error"
+        
+    def test_sequential_dataloader(self):
+        hgtdb_train = HGTDBDatasetSequential('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        dataloader = torch.utils.data.DataLoader(dataset=hgtdb_train,batch_size=5,shuffle=True)
+        print(next(iter(dataloader)))
+        assert len(hgtdb_train)!=0, "error"
+        
+    def test_sequential_dataloader_v2(self):
+        hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
         print(hgtdb_train[0])
         assert len(hgtdb_train)!=0, "error"
+    
+    def test_sequential_dataloader_v2_2(self):
+        hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        dataloader = torch.utils.data.DataLoader(dataset=hgtdb_train,batch_size=5,shuffle=True)
+        
+        print(next(iter(dataloader)))
+        assert len(hgtdb_train)!=0, "error"
+    
     
     #def test_init_positive(self):
     #    genome = NCBIDataDownloaderPrep('AE000657')
