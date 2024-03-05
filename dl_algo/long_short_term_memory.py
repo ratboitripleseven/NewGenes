@@ -251,6 +251,31 @@ class LSTMHGTTagger_v6(nn.Module):
 
         return output, input_sizes
     
+class LSTMHGTTagger_unpadded_v6(nn.Module):
+
+    def __init__(self, embedding_dim, hidden_dim, tagset_size):
+        super(LSTMHGTTagger_unpadded_v6, self).__init__()
+        
+        self.last_epoch= 0
+        self.hidden_dim = hidden_dim
+
+        # The LSTM takes word embeddings as inputs, and outputs hidden states
+        # with dimensionality hidden_dim.
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+        self.act_func_last = nn.Sigmoid()
+        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+
+    def forward(self, input):
+        
+        
+        #input to model
+        lstm_out,_ = self.lstm(input)
+        #print(lstm_out)
+        #print(lstm_out)
+        output = self.act_func_last(self.hidden2tag(lstm_out))
+
+        return output
+    
 class BiLSTMHGTTagger_v6(nn.Module):
 
     def __init__(self, embedding_dim, hidden_dim, tagset_size):
