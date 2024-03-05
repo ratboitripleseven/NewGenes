@@ -75,7 +75,8 @@ class BinaryClassifierDLBase:
         self.precision = None
         self.roc_auc = None
         
-        if algotrithm_type not in ['c','d']:
+        # TODO: check this I think it is redundant
+        if algotrithm_type not in ['c','d','e']:
             raise ValueError(f'Unknown model type {algotrithm_type}')
         else:
             self.algotrithm_type = algotrithm_type
@@ -323,3 +324,122 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
         #print(f'test f1: {f1_score}')
         #print('Confusion matrix:')
         #print(conf_mat)
+
+
+
+class BinaryClassifierDLNonSequential(BinaryClassifierDLBase):
+    def __init__(self, name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode='train'):
+        print('INTIALIZING DL NON-SEQUENTIAL (UNPADDED!)')
+        super().__init__(name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode)
+        
+    def model_train(self, epochs = 15):
+        self.logger.info('START OF TRAINING')
+        for epoch in range(epochs):
+            self.epoch += 1
+            print(f'training epoch:{self.epoch}')
+            acc_loss = 0.
+            acc_vl_loss = 0.
+            y_true_list = []
+            y_pred_list = []
+            
+            # train !
+            for (idx, data) in enumerate(self.train_loader):
+                # print(idx)
+                self.algorithm.train()
+                self.algorithm.zero_grad()
+                
+                
+                inputs = data['datum']
+                #print(inputs)
+                output = self.algorithm(inputs)
+                
+                targets = data['label']
+                
+                
+                # calc loss
+                loss = self.loss(output, targets)
+                loss.backward()
+
+                # optimizer step
+                self.optimizer.step()
+                acc_loss += loss.item()
+                
+            # eval
+            for (idx, data) in enumerate(self.valid_loader):
+                self.algorithm.eval()
+                
+                with torch.no_grad():
+                    inputs = data['datum']
+                    output = self.algorithm(inputs)
+                    
+                    targets = data['label']
+                    # calc loss
+                    loss = self.loss(output, targets)
+
+                    acc_vl_loss += loss.item()
+
+
+                
+            #acc = metrics.accuracy_score(y_true_list, y_pred_list)
+            #print(f'val acc: {acc}')
+                
+            print(f'acculumative loss: {acc_loss/len(self.train_loader)}')
+            print(f'acculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
+            self.logger.info(f'epoch: {self.epoch}')
+            self.logger.info(f'\tacculumative loss: {acc_loss/len(self.train_loader)}')
+            self.logger.info(f'\tacculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
+            
+    
+    def model_eval(self):
+        #y_true_list = []
+        #y_pred_list = []
+        targs = []
+        preds = []
+        preds_not_rounded = []
+        
+        self.logger.info('START OF EVAL')
+        print(len(self.test_loader))
+        for (idx, data) in enumerate(self.test_loader):
+            self.algorithm.eval()
+            with torch.no_grad():
+                inputs = data['datum']
+                output = self.algorithm(inputs)
+                
+                targets = data['label']
+
+                
+            #print(targets.size())
+                #accuracy = (output.round() == targets).float().mean()
+                #print(accuracy)
+            targs = [*targs, *targets.detach().numpy().tolist()]
+            #targs.append(targets.detach().numpy().tolist())
+            preds = [*preds, *output.detach().round().numpy().tolist()]
+            #preds.append(output.detach().round().numpy().tolist())
+            preds_not_rounded = [*preds_not_rounded, *output.detach().numpy().tolist()]
+            #preds_not_rounded.append(output.detach().numpy().tolist())
+
+        
+
+                
+        print('***'*20)
+        #print(len(targs))
+        acc = metrics.accuracy_score(targs, preds)
+        prec = metrics.precision_score(targs, preds)
+        reca = metrics.recall_score(targs, preds)
+        f1_score = metrics.f1_score(targs, preds)
+        conf_mat = metrics.confusion_matrix(targs, preds)
+        print(f'test acc: {acc}')
+        print(f'test prec: {prec}')
+        print(f'test recall: {reca}')
+        print(f'test f1: {f1_score}')
+        print(f'preds:\n\t{preds_not_rounded}')
+        print('Confusion matrix:')
+        print(conf_mat)
+        
+        self.logger.info(f'test acc: {acc}')
+        self.logger.info(f'test prec: {prec}')
+        self.logger.info(f'test recall: {reca}')
+        self.logger.info(f'test f1: {f1_score}')
+        self.logger.info(f'preds:\n\t{preds_not_rounded}')
+        self.logger.info('Confusion matrix:')
+        self.logger.info(conf_mat)
