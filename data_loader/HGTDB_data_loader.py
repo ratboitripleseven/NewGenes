@@ -119,40 +119,41 @@ class HGTDBDataLoader():
         
     
     def dataset_prep(self):
-            '''
-            TODO: Think about the design better!
-            this abstract method should set X, Y, train and test
-            '''
-            partition_frame = pd.read_csv(self.partition_file)
-            if self.data_type == 'A':
-                columns = 4
-            elif self.data_type == 'B':
-                columns = 12
-            elif self.data_type == 'C':
-                columns = 10
-            elif self.data_type == 'D':
-                columns = 4
-            elif self.data_type == 'E':
-                columns = 8
-            elif self.data_type == 'F':
-                columns = 6
+        '''
+        TODO: Think about the design better!
+        this abstract method should set X, Y, train and test
+        '''
+        
+        partition_frame = pd.read_csv(self.partition_file)
+        if self.data_type == 'A':
+            columns = 4
+        elif self.data_type == 'B':
+            columns = 12
+        elif self.data_type == 'C':
+            columns = 10
+        elif self.data_type == 'D':
+            columns = 4
+        elif self.data_type == 'E':
+            columns = 8
+        elif self.data_type == 'F':
+            columns = 6
+        else:
+            raise ValueError(f'Unknown data type {self.data_type}')
+        X_train = np.array([]).reshape(0,columns)
+        y_train = np.array([]).reshape(0,)
+        X_test = np.array([]).reshape(0,columns)
+        y_test = np.array([]).reshape(0,)
+        
+        for i in range(len(partition_frame)):
+            X,y = self._load_single_file(partition_frame.loc[i,'file'], self.data_type)
+            if partition_frame.loc[i,'partition'] == 'train':
+                X_train = np.concatenate([X, X_train], axis = 0)
+                y_train = np.concatenate([y, y_train], axis = 0)
             else:
-                raise ValueError(f'Unknown data type {self.data_type}')
-            X_train = np.array([]).reshape(0,columns)
-            y_train = np.array([]).reshape(0,)
-            X_test = np.array([]).reshape(0,columns)
-            y_test = np.array([]).reshape(0,)
-            
-            for i in range(len(partition_frame)):
-                X,y = self._load_single_file(partition_frame.loc[i,'file'], self.data_type)
-                if partition_frame.loc[i,'partition'] == 'train':
-                    X_train = np.concatenate([X, X_train], axis = 0)
-                    y_train = np.concatenate([y, y_train], axis = 0)
-                else:
-                    X_test = np.concatenate([X, X_test], axis = 0)
-                    y_test = np.concatenate([y, y_test], axis = 0)
-            
-            return X_train, y_train, X_test, y_test
+                X_test = np.concatenate([X, X_test], axis = 0)
+                y_test = np.concatenate([y, y_test], axis = 0)
+        
+        return X_train, y_train, X_test, y_test
         
         
 class HGTDBDatasetSequential(torch.utils.data.Dataset):
