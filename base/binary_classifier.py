@@ -25,6 +25,7 @@ TODO: Model loading
 class BinaryClassifier:
     def __init__(self, name, algotrithm_type, algorithm, dataloader,params=None, mode='train'):
         
+        self.logger = None
         now = datetime.now()
         self.dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
         self.name = name
@@ -38,6 +39,8 @@ class BinaryClassifier:
             print(f'Saving in {self.save_folder_root}')
         else:
             print(f'Saving in {self.save_folder_root}')
+        
+        self._init_logger()
         
         if mode == 'train':
             self.algorithm = algorithm
@@ -73,11 +76,28 @@ class BinaryClassifier:
           
         #self._dataset_prep('E')
         
+    def _init_logger(self):
+        # create log folder to save logging
+        folder_name = os.path.join(self.save_folder_root,self.name)
+        if not os.path.isdir(folder_name):
+            os.makedirs(folder_name)
+            print("creating folder : ", folder_name)
+            
+            
+        # init logger
+        #logging.basicConfig(level=logging.INFO, filename=self.save_folder_root+"logs/"+self.name,filemode="w")
+        logging.basicConfig(level=logging.INFO, filename=os.path.join(folder_name,'log_'+'BinaryClassifier'),filemode="w")
+        self.logger=logging.getLogger()
+        self.logger.info('ACCESS:')
+        self.logger.info(self.dt_string)
     
     def _print_data_statistics(self):
         print('\tDataset statistics:')
         print(f'\t\tLength of Training set: {len(self.X_train)}')
         print(f'\t\tLength of Test set: {len(self.X_test)}')
+        self.logger.info('\tDataset statistics:')
+        self.logger.info(f'\t\tLength of Training set: {len(self.X_train)}')
+        self.logger.info(f'\t\tLength of Test set: {len(self.X_test)}')
         
         
         
@@ -88,9 +108,11 @@ class BinaryClassifier:
         
     
     def model_train(self):
+        self.logger.info('Training Starts')
         self.algorithm.fit(self.X_train,self.Y_train)
 
     def model_eval(self):
+        self.logger.info('Evaluation Starts')
         self._get_accuracy()
         self._get_precision()
         self._get_roc_auc()
@@ -101,16 +123,20 @@ class BinaryClassifier:
             predictions = self.algorithm.predict(self.X_test)
             self.accuracy = metrics.accuracy_score(self.Y_test, predictions)
             print(f'acc: {self.accuracy}')
+            self.logger.info(f'prec: {self.accuracy}')
         else:
             print(f'acc: {self.accuracy}')
+            self.logger.info(f'prec: {self.accuracy}')
             
     def _get_precision(self):
         if self.precision is None:
             predictions = self.algorithm.predict(self.X_test)
             self.precision = metrics.precision_score(self.Y_test, predictions)
             print(f'prec: {self.precision}')
+            self.logger.info(f'prec: {self.precision}')
         else:
             print(f'prec: {self.precision}')
+            self.logger.info(f'prec: {self.precision}')
         
         
     def _get_roc_auc(self):
@@ -121,8 +147,10 @@ class BinaryClassifier:
             y_proba = self.algorithm.predict_proba(self.X_test)[:, 1]
             self.roc_auc = metrics.roc_auc_score(self.Y_test, y_proba)
             print(f'roc_auc: {self.roc_auc}')
+            self.logger.info(f'roc_auc: {self.roc_auc}')
         else:
             print(f'roc_auc: {self.roc_auc}')
+            self.logger.info(f'roc_auc: {self.roc_auc}')
             
     def save_model(self):
         '''
