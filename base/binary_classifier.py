@@ -6,8 +6,13 @@ import joblib
 import os
 import time
 from datetime import datetime
+import logging
+import torch
+import torch.nn.utils.rnn as rnn
 
-
+# this import need not be here for future
+import torch.nn as nn
+import torch.optim as optim
 
 '''
 TODO: Model loading
@@ -18,15 +23,28 @@ TODO: Model loading
 
 
 class BinaryClassifier:
-    def __init__(self, name, algotrithm_type, algorithm, dataloader, mode='train'):
+    def __init__(self, name, algotrithm_type, algorithm, dataloader,params=None, mode='train'):
         
         now = datetime.now()
         self.dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
         self.name = name
+        
+        # create folder first to save
         self.save_folder_root = 'models/binary_classifier/'
+        # create root save folder
+        if not os.path.isdir(self.save_folder_root):
+            os.makedirs(self.save_folder_root)
+            print("creating folder : ", self.save_folder_root)
+            print(f'Saving in {self.save_folder_root}')
+        else:
+            print(f'Saving in {self.save_folder_root}')
         
         if mode == 'train':
             self.algorithm = algorithm
+            # set params by kwargs
+            if params is not None:
+                self.algorithm.set_params(**params)
+            
         elif mode  == 'eval':
             self.algorithm = self._load_model()
 
@@ -40,7 +58,7 @@ class BinaryClassifier:
         self.roc_auc = None
         
         
-        if algotrithm_type not in ['c','d' ]:
+        if algotrithm_type not in ['c','d']:
             raise ValueError(f'Unknown model type {algotrithm_type}')
         else:
             self.algotrithm_type = algotrithm_type
@@ -111,6 +129,13 @@ class BinaryClassifier:
         creates folder 
         and save models and perhaps report?
         '''
+        '''
+        # create root save folder
+        if not os.path.isdir(self.save_folder_root):
+            os.makedirs(self.save_folder_root)
+            print("creating folder : ", self.save_folder_root)
+            
+        ''' 
         # create root save folder
         if not os.path.isdir(self.save_folder_root):
             os.makedirs(self.save_folder_root)
@@ -135,5 +160,5 @@ class BinaryClassifier:
         return joblib.load(os.path.join(folder_name,'model_'+'BinaryClassifier'))
             
 
-    
-    
+        
+        

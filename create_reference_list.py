@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import os
 
-
+REFERENCE_ROOT = 'reference/'
 
 def get_assembly_summary(id):
     """Get esummary for an entrez id"""
@@ -87,11 +87,11 @@ def main():
             print('continuing')
             
         
-    hgtree_genomes['link_to_file'] = links
+    hgtree_genomes['link'] = links
     hgtree_genomes['genbank_accession'] = gbs
     hgtree_genomes['refseq_acession'] = rss
     
-    hgtree_genomes.to_csv('complete_reference_redo.csv')
+    hgtree_genomes.to_csv(REFERENCE_ROOT+'ref_hgtree.csv')
         
         
     

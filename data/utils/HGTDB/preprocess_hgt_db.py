@@ -54,6 +54,7 @@ def preprocess(path_to_file):
     df["FunctionCode"].replace('-','',inplace=True)
     # binary encoding AADev
     df["AADev"].replace(np.nan, 0, inplace=True)
+    df["AADev"].replace('', 0, inplace=True)
     df["AADev"] = np.where(df["AADev"] != 0, 1, df["AADev"])
     
     
