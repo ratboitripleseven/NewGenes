@@ -25,6 +25,9 @@ from Bio import Entrez
 import urllib
 import gzip
 import shutil
+import torch
+from sklearn import preprocessing
+from torch.nn.utils.rnn import pad_sequence
 SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
 PREPPED_SEQUENCES_FOLDER = 'data/NCBI/prep/'
 CODE = {
@@ -56,6 +59,9 @@ def parse_args():
     )
     
 class NCBIDataLoader:
+    '''
+    This is for classical (?)
+    '''
     def __init__(self, partition_file, data_type = 'F'):
         self.partition_file = partition_file
         self.partition_frame = None
@@ -66,7 +72,7 @@ class NCBIDataLoader:
     def _check_prepped_file_availability(self):
         self.partition_frame  = pd.read_csv(self.partition_file)
         for i in range(len(self.partition_frame)):
-            identifier = self.partition_frame.loc[i,'GenBank accession number']
+            identifier = self.partition_frame.loc[i,'asm_name']
             link = self.partition_frame.loc[i,'link']
             # check if file is prepped
             if not os.path.isfile(PREPPED_SEQUENCES_FOLDER+identifier+'.csv'):
@@ -97,7 +103,7 @@ class NCBIDataLoader:
         y_test = np.array([]).reshape(0,)
         
         for i in range(len(self.partition_frame)):
-            identifier = self.partition_frame.loc[i,'GenBank accession number']
+            identifier = self.partition_frame.loc[i,'asm_name']
             temp_data = pd.read_csv(PREPPED_SEQUENCES_FOLDER+identifier+'.csv', index_col=0)
             temp_data['HGT'] = temp_data['HGT'].fillna(0)
             temp_data['HGT'] = temp_data['HGT'].replace('H',1)
@@ -119,7 +125,219 @@ class NCBIDataLoader:
         return X_train, y_train, X_test, y_test
             
         
+class NCBIDatasetSequential(torch.utils.data.Dataset):
+    def __init__(self, data_type, partition_file, partition):
+        '''
+        Note: Annotate is not suppose to have any labls as it is supposed to be used to annotate them!
+        
+        '''
+        # Annotate bypasses any partition and just us th whole partition file to load
+        if partition not in ['train','test','valid','annotate']:
+            raise ValueError('not partition or train, test or valid!')
+        
+        
+        
+        self.partition = partition
+        self.data_type = data_type
+        self.partition_file = partition_file
+        self.min_max_scaler = preprocessing.MinMaxScaler()
+        # self.one_hot_encoder = preprocessing.OneHotEncoder()
+        # self.drop_na = drop_na
+        self.null_count = 0
+        self.na_count = 0
+        
+        self.max_sequence = 0
+        
+        # load all in ram perhaps?
+        self.data_x = []
+        self.data_y = []
+        self.data_seq_length = []
+        self.data_id = []
+        
+        
+        self._init_dataset()
+        
+    def _load_single_file(self, species, data_type):
+        '''
+        I took this from HGTDB squential data laoder
+        '''
 
+        preprocessed_path = PREPPED_SEQUENCES_FOLDER
+        
+        csv_list = os.listdir(preprocessed_path)
+        
+    
+        if species is not None:
+            csv_file = None
+            for path in csv_list:
+                # check if current path is a file
+                if os.path.basename(path).replace(".csv", "") == species:
+                    csv_file =os.path.join(preprocessed_path, path)
+                    df = pd.read_csv(csv_file)
+            if csv_file is None:
+                raise ValueError(f'{species} not found')
+        else:
+            raise ValueError(f'{species} not found')
+        
+        # need to drop the first unnamed column!
+        df = df.drop(df.columns[0],axis=1)
+            
+        # set dataset according to data type
+        if data_type == 'A':
+            df = df.drop(columns=["gene","protein","protein_id","location","SD1","SD2","SD3","SDT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]) # only GC1,GC2,GC3,GCT
+        elif data_type == 'B':
+            df = df.drop(columns=["FunctionCode","Strand","Length","SD1","SD2","SD3","SDT"]) # only GC1,GC2,GC3,GCT,Mah,AADev
+        elif data_type == 'C':
+            # C is basically A but padding is with 0.666 instead of 0
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","SD1","SD2","SD3","SDT","Mah"]) # only GC1,GC2,GC3,GCT
+        elif data_type == 'D':
+            # So z score is basically what is calculated for sd1,2,3,t
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
+        elif data_type == 'E':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["gene","protein","protein_id","location","GC1","GC2","GC3","GCT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]) # only SD1,SD2,SD3,SDT
+        elif data_type == 'F':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # z score for mah is added here
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT"]) # only SD1,SD2,SD3,SDT, Mah
+        
+        print(df)
+        # count nulls!
+        #df.bfill(inplace=True)
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+        df = df.bfill(axis='columns')
+        #for column in df.columns:
+        #    df[column] = df[column].fillna(0)
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+
+        
+        
+        #df.dropna(inplace=True)
+        
+        #after replacing nan
+        #null_count = 0
+        #na_count = 0
+        #null_count +=df.isnull().sum().sum()
+        #na_count +=df.isna().sum().sum()
+        #print(null_count)
+        #print(na_count)
+        
+        # preprocess i.e. normalize and shit
+        # labels are not affected since there is only two options 0,1
+        if data_type == 'D':
+            pass
+        elif data_type == 'E':
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+        elif data_type == 'F':
+            # need to reindex!
+            df=df.reset_index(drop=True)
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+            
+            # calculate mean mah
+            mean_Mah = df['Mah'].sum()/len(df)
+            # calculate sdmah
+            sum_of_mah_diffs = 0
+            for gene_idx in range(len(df)):
+                mah_diff = df.loc[gene_idx, 'Mah'] - mean_Mah
+                squared_mah_diff = mah_diff * mah_diff
+                sum_of_mah_diffs = sum_of_mah_diffs + squared_mah_diff
+                
+            sd_mah = math.sqrt(sum_of_mah_diffs/len(df))
+            
+            # calculate deviation for each val
+            standard_deviation = []
+            for x in df['Mah']:
+                standard_deviation.append( (x - mean_Mah)/ sd_mah )
+                
+            # cut off and divide by 2
+            standard_deviation_standardized = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in standard_deviation]
+            # replace mah values (i think this is fine)
+            df['Mah'] = standard_deviation_standardized
+        else:
+            df=(df-df.min())/(df.max()-df.min())
+        array = df.values
+        
+        #x = array[:,0:-1]
+        #y = array[:,-1]
+        #y = np.expand_dims(y, axis=1)
+        #print('HERe')
+        #print(y.size)
+        if self.partition != 'annotate':
+            x = array[:,0:-1]
+            y = array[:,-1]
+            y = np.expand_dims(y, axis=1)
+        else:
+            x = array
+            y = np.zeros(len(x))
+
+
+        return x,y 
+        
+    
+    def _init_dataset(self):
+        '''
+        '''
+        partition_frame = pd.read_csv(self.partition_file)
+        if self.partition != 'annotate':
+            # if not annotate partition
+            partition_frame = partition_frame[partition_frame['partition']==self.partition].reset_index(drop=True)
+        
+        
+        for i in range(len(partition_frame)):
+            x,y = self._load_single_file(partition_frame.loc[i,'asm_name'], self.data_type)
+            
+            if self.max_sequence<len(x):
+                self.max_sequence = len(x)
+                
+            self.data_id.append(partition_frame.loc[i,'asm_name'])
+            self.data_x.append(torch.from_numpy(np.float32(x)))
+            self.data_y.append(torch.from_numpy(np.float32(y)))
+            self.data_seq_length.append(torch.tensor(len(x)))
+            
+        # pad 'sequences'
+        # padded stuff are tagged as 0!
+        if self.data_type == 'C':
+            self.data_x = pad_sequence(self.data_x, batch_first=True, padding_value=0.666)
+        else:
+            self.data_x = pad_sequence(self.data_x, batch_first=True)
+        self.data_y = pad_sequence(self.data_y, batch_first=True)
+
+    def __getitem__(self, ind):
+        datum = self.data_x[ind]
+        label = self.data_y[ind]
+        seq_length = self.data_seq_length[ind]
+        data_id = self.data_id[ind]
+        
+        output = {
+            "datum" : datum,
+            "seq_length" : seq_length,
+            "data_id" : data_id,
+            "label" : label
+        }
+        return output
+    
+    def __len__(self):
+        return len(self.data_x)
+        
+        
+        
+        
 
 class NCBIDataDownloaderPrep:
     def __init__(self, name, link):
@@ -576,14 +794,15 @@ class NCBIDataDownloaderPrep:
 class TestNCBIDataLoaderPrep(unittest.TestCase):
     
     def test_dataloader(self):
-        dataloader = NCBIDataLoader('partition_file/class_chlorobia.csv')
+        dataloader = NCBIDataLoader('partition_file/phylum_Fibrobacterota_test_available.csv')
         x1,y1,x2,y2 = dataloader.dataset_prep()
         assert len(x1)!=0, "error!"
     
     
-    #def test_init_positive(self):
-    #    genome = NCBIDataDownloaderPrep('AE000657')
-    #    assert genome.genes is not None, "Somthing is wrong when reading file"
+    def test_NCBI_Sequential(self):
+        dataset = NCBIDatasetSequential('A','partition_file/phylum_Fibrobacterota_test_available.csv','annotate' )
+        print(dataset[0])
+        assert len(dataset) ==2, "Something wrong wtih dataset sequential"
     
     #def test_prep_genome(self):
     #    genome = NCBIDataDownloaderPrep('AL009126')

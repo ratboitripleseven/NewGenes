@@ -17,21 +17,18 @@ class HGTDBDataLoader():
     def __init__(self, data_type, partition_file):
         self.data_type = data_type
         self.partition_file = partition_file
+        self.null_count = 0
+        self.na_count = 0
 
     
-    def _load_single_file(self, species, data_type, cross_partition = None, drop_na=False,return_df = False, genome_info = False):
+    def _load_single_file(self, species, data_type, drop_na=False, genome_info = False):
         '''
         species: 
             choose specific species or use all
         
         data_type: 
             choose from [A,B,C,D,E] 
-        
-        cross_partition: 
-            choose either train or test. This does 1 fold partition.
-            first 2/3 is for training
-            last 1/3 is for testing
-        
+                
         '''
         
         #if cross_partition is not None and return_folds is True: raise ValueError('Choose either cross partition OR folds!')
@@ -40,18 +37,6 @@ class HGTDBDataLoader():
         
         
         csv_list = os.listdir(preprocessed_path)
-        
-        if cross_partition is not None:
-            #assert species == 'all', 'cross partitioning is only available when loading all genomes'
-            if species != 'all': raise ValueError('cross partitioning is only available when loading all genomes')
-            
-            # partition 2:1 train, test
-            if cross_partition == 'train':
-                csv_list = csv_list[:int(len(csv_list)*(2/3))]
-            elif cross_partition == 'test':
-                csv_list = csv_list[int(len(csv_list)*(2/3)):]
-            else:
-                raise ValueError(f'No cross partition for {cross_partition}. Choose train or test')
         
         
         if species == 'all':
@@ -108,14 +93,24 @@ class HGTDBDataLoader():
         if drop_na:
             df.dropna(inplace=True)
         
-        if return_df:
-            # return as pandas
-            return df
-        else:
-            # return as numpy array
-            array = df.values
-            # return X, y
-            return array[:,0:-1], array[:,-1]
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+        df = df.bfill(axis='columns')
+        #for column in df.columns:
+        #    df[column] = df[column].fillna(0)
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+
+        
+        # return as numpy array
+        array = df.values
+        # return X, y
+        return array[:,0:-1], array[:,-1]
         
     
     def dataset_prep(self):
@@ -413,7 +408,8 @@ class TestHGTDBDataLoaderPrep(unittest.TestCase):
         
     def test_sequential_dataloader_v2(self):
         hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
-        print(hgtdb_train[0])
+        #print(hgtdb_train[0])
+        print(f' Training length {len(hgtdb_train)}')
         assert len(hgtdb_train)!=0, "error"
     
     def test_sequential_dataloader_v2_2(self):
@@ -422,6 +418,13 @@ class TestHGTDBDataLoaderPrep(unittest.TestCase):
         
         print(next(iter(dataloader)))
         assert len(hgtdb_train)!=0, "error"
+        
+    def test_lengths(self):
+        dataloader_1 = HGTDBDataLoader('F','partition_file/HGTDB_firmicutes.csv')
+        x1,y1,x2,y2 = dataloader_1.dataset_prep()
+        hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        #print(hgtdb_train[0])
+        assert len(x1)==len(hgtdb_train), "error"
     
     
     #def test_init_positive(self):
