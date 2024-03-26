@@ -2,6 +2,7 @@
 import argparse
 import yaml
 import logging
+import os
 
 #import models
 from lightgbm import LGBMClassifier
@@ -11,7 +12,7 @@ from dl_algo.long_short_term_memory import *
 
 #import dataloaders
 from data_loader.HGTDB_data_loader import HGTDBDataLoader, HGTDBDatasetSequential, HGTDBDatasetSequential_v2
-from data_loader.NCBI_data_loader import NCBIDataLoader
+from data_loader.NCBI_data_loader import NCBIDataLoader, NCBIDatasetSequential
 
 #import bases
 from base.binary_classifier import BinaryClassifier
@@ -158,7 +159,7 @@ def assert_config(args):
         'nonsequential'
     ]
     list_of_data_type = ['A','B','C','D','E','F']
-    list_of_mode = ['train', 'eval']
+    list_of_mode = ['train', 'eval', 'annotate']
     
     print('-*-'*20)
     ## check args
@@ -169,12 +170,13 @@ def assert_config(args):
     
     # load yaml file
     configuration_file = ROOT_CONFIGURATION_FOLDER+args.config+'.yaml'
-    print(f'Configuration file: \n\t{configuration_file}')
-    try:
+    # check if yaml file exist
+    if os.path.isfile(configuration_file):
+        print(f'Configuration file: \n\t{configuration_file}')
         with open(configuration_file, "r") as yamlfile:
             configuration = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    except FileNotFoundError:
-        print(f"File {configuration_file} not found!")
+    else:
+        raise FileNotFoundError(f"File {configuration_file} not found!")
         
     ## check configs
     # check dataset configs
@@ -220,7 +222,15 @@ def main():
     
     algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
     print(algorithm)
-    dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
+    
+    if args.mode == 'annotate':
+        #partition_file/phylum_Fibrobacterota_test_available.csv
+        annotate_file = input("Specify the csv file for annotation\n")
+        annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
+        dataloader = (None,None,None)
+    else:
+        dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
+        
     
     
     print(configuration['Model']['params'])
@@ -236,8 +246,15 @@ def main():
     elif args.mode == 'eval':
         test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'eval')
         test_model.model_eval()
-    
-    
+    elif args.mode == 'annotate':
+        # TODO: This will be the main update
+        # should be like test_mode.model_annotate()
+        # the model annotate should have an NCBI file asn input
+        #   I think it is better to be partition of ncbi/fast files and not singular!
+        # and output as fasta or csv but annotated by the trained model
+        # start with DL then ML
+        test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'annotate')
+        test_model.model_annotate(annotate_dataset)
 
 
 if __name__ == '__main__':
