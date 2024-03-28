@@ -2,6 +2,13 @@
 __pycache__/
 *.py[cod]
 
+#snakemake
+results/**
+resources/**
+logs/**
+.snakemake
+.snakemake/**
+
 # database
 data/HGTDB/temp_data/*
 data/HGTDB/preprocessed_data/*
@@ -15,6 +22,7 @@ partition_file/*
 reference/*
 models/*
 configuration/*
+annotated_file_HGT/*
 # personal stuff ignore!
 newgenes_complete_reference.csv
 new_genes/*
@@ -34,3 +42,4 @@ HGTDB_threshold/*
 ignore/*
 .vscode/*
 deviation.ipynb
+post_14032024.ipynb
