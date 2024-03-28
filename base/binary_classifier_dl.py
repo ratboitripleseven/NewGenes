@@ -14,7 +14,9 @@ import torch.nn.utils.rnn as rnn
 import torch.nn as nn
 import torch.optim as optim
 
-
+# for annotation
+from data_loader.utils.prep_genome import prep_genome
+SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
 
 
 
@@ -59,7 +61,16 @@ class BinaryClassifierDLBase:
         if mode  == 'eval':
             self.logger.info("Model Loaded") 
             self._load_model()
-            # self.algorithm = self._load_model()
+        elif mode  == 'annotate':
+            self.logger.info("Model Loaded") 
+            self._load_model()
+            self.annotate_folder_root = 'annotated_file_HGT/'
+            if not os.path.isdir(self.annotate_folder_root):
+                os.makedirs(self.annotate_folder_root)
+                print("creating folder : ", self.annotate_folder_root)
+                print(f'Saving in {self.annotate_folder_root}')
+            else:
+                print(f'Saving in {self.annotate_folder_root}')
             
         
 
@@ -82,7 +93,8 @@ class BinaryClassifierDLBase:
             self.algotrithm_type = algotrithm_type
 
         #self._init_dataloader()
-        self._set_data()
+        if mode != 'annotate':
+            self._set_data()
         #self._print_data_statistics()
         
     def _set_data(self,  batch_size = 3):
@@ -127,6 +139,35 @@ class BinaryClassifierDLBase:
         self.logger.info('ACCESS:')
         self.logger.info(self.dt_string)
     
+    def output_annotation(self, list_of_genomes, list_of_hgts):
+        '''
+        Called when annotating
+        Output fast file
+        
+        This need to be redone! this is so badly coded
+        '''
+        folder_name = os.path.join(self.annotate_folder_root,self.name)
+        if not os.path.isdir(folder_name):
+            os.makedirs(folder_name)
+            print("creating annotation folder : ", folder_name)
+            
+        root_prep_file = 'data/NCBI/prep/'
+        for idx, genome in enumerate(list_of_genomes):
+            #genome_df = pd.read_csv(root_prep_file+genome+'.csv')
+            # genome_df=pd.DataFrame(prep_genome(SEQUENCES_FOLDER, genome))
+            #test=prep_genome(SEQUENCES_FOLDER, genome)
+            #print(len(test))
+            #genome_df['HGT'] = list_of_hgts[idx]
+            #genome_df = genome_df[['sequences','HGT']]
+            #genome_df.to_csv(folder_name+genome+'.csv', index=False)
+            f = open(folder_name+genome+'.fasta', 'w')
+            genome_dict = prep_genome(SEQUENCES_FOLDER, genome)
+            for i,gene in enumerate(genome_dict):
+                f.write(">" + gene+ " HGT: " + str(int(list_of_hgts[idx][i])) + "\n" + genome_dict[gene]['sequence'] + "\n")
+            f.close()
+            
+            
+        
         
     def save_model(self):
         # how do is
@@ -324,6 +365,58 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
         #print(f'test f1: {f1_score}')
         #print('Confusion matrix:')
         #print(conf_mat)
+    
+    def model_annotate(self, annotated_dataset):
+        '''
+        Similar to eval but no need to model_eval
+        Instead of getting evaluation metrics, It annotates the genomes
+        '''
+        #init data loader for annotation
+        annotated_loader = torch.utils.data.DataLoader(dataset=annotated_dataset,batch_size=1,shuffle=False)
+        
+        y_pred_rounded = []
+        list_input_sizes = []
+        genome_id = []
+        
+        y_pred_not_rounded = []
+        
+        self.logger.info('START OF ANNOTATION')
+        print(len(annotated_loader))
+        for (idx, data) in enumerate(annotated_loader):
+            self.algorithm.eval()
+            with torch.no_grad():
+                inputs = (data['datum'], data['seq_length'])
+                output, input_sizes = self.algorithm(inputs)
+                genome_ids = data['data_id']
+                
+                
+                #accuracy = (output.round() == targets).float().mean()
+                #print(accuracy)
+                
+            # the squeeze here is needed and fine
+            output = torch.squeeze(output,2)
+            
+
+            for i in range(output.size(0)):
+                list_input_sizes.append(input_sizes[i])
+                # collected are all padded data!
+                y_pred_rounded.append( output[i].detach().round().numpy().tolist())
+                y_pred_not_rounded.append( output[i].detach().numpy().tolist())
+                genome_id.append(genome_ids[i])
+                
+        for idx in range(len(y_pred_rounded)):
+            print('***'*20)
+            print(f'Test genome no {genome_id[idx]} of length: {list_input_sizes[idx]} ')
+            slice_index = list_input_sizes[idx]
+            preds = y_pred_rounded[idx]
+            preds_not_rounded =y_pred_not_rounded[idx]
+            # slice the padding!
+            preds_not_rounded = preds_not_rounded[:slice_index]
+            #print(len(targs))
+
+            
+            self.logger.info('Confusion matrix:')
+        self.output_annotation(genome_id,y_pred_rounded)
 
 
 
