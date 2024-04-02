@@ -161,7 +161,9 @@ class BinaryClassifierDLBase:
             #genome_df = genome_df[['sequences','HGT']]
             #genome_df.to_csv(folder_name+genome+'.csv', index=False)
             f = open(folder_name+'/'+genome+'.fasta', 'w')
-            genome_dict = prep_genome(SEQUENCES_FOLDER, genome)
+            file_path = SEQUENCES_FOLDER+'/'+ genome+'.fna'
+            # genome_dict = prep_genome(SEQUENCES_FOLDER, genome)
+            genome_dict = prep_genome(file_path)
             for i,gene in enumerate(genome_dict):
                 f.write(">" + gene+ " HGT: " + str(int(list_of_hgts[idx][i])) + "\n" + genome_dict[gene]['sequence'] + "\n")
             f.close()

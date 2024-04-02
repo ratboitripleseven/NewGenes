@@ -203,7 +203,7 @@ class NCBIDatasetSequential(torch.utils.data.Dataset):
             # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT"]) # only SD1,SD2,SD3,SDT, Mah
         
-        print(df)
+        #print(df)
         # count nulls!
         #df.bfill(inplace=True)
         self.null_count +=df.isnull().sum().sum()
@@ -222,18 +222,6 @@ class NCBIDatasetSequential(torch.utils.data.Dataset):
 
         
         
-        #df.dropna(inplace=True)
-        
-        #after replacing nan
-        #null_count = 0
-        #na_count = 0
-        #null_count +=df.isnull().sum().sum()
-        #na_count +=df.isna().sum().sum()
-        #print(null_count)
-        #print(na_count)
-        
-        # preprocess i.e. normalize and shit
-        # labels are not affected since there is only two options 0,1
         if data_type == 'D':
             pass
         elif data_type == 'E':
@@ -273,11 +261,6 @@ class NCBIDatasetSequential(torch.utils.data.Dataset):
             df=(df-df.min())/(df.max()-df.min())
         array = df.values
         
-        #x = array[:,0:-1]
-        #y = array[:,-1]
-        #y = np.expand_dims(y, axis=1)
-        #print('HERe')
-        #print(y.size)
         if self.partition != 'annotate':
             x = array[:,0:-1]
             y = array[:,-1]
@@ -340,7 +323,7 @@ class NCBIDatasetSequential(torch.utils.data.Dataset):
         
 
 class NCBIDataDownloaderPrep:
-    def __init__(self, name, link):
+    def __init__(self, name, link=None):
         
         self.name = name
         self.link = link
@@ -403,13 +386,9 @@ class NCBIDataDownloaderPrep:
         
     def _prep_genome(self, name)->dict:
         # print('Prepping')
-        return prep_genome(SEQUENCES_FOLDER,name)
-    
-    def _get_assembly_summary(self, id):
-        """Get esummary for an entrez id"""
-        esummary_handle = Entrez.esummary(db="assembly", id=id, report="full")
-        esummary_record = Entrez.read(esummary_handle)
-        return esummary_record
+        file_path = SEQUENCES_FOLDER+'/'+ name+'.fna'
+        print(f'file path : {file_path}')
+        return prep_genome(file_path)
     
     def _download_genome(self, name, link):
         #def get_assemblies(term, download=True, path='sequence_files'):
@@ -421,7 +400,7 @@ class NCBIDataDownloaderPrep:
             path: folder to save to
         """
         
-        if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
+        if link:
             #download link
             print(f'downloading {name}, at {link} ')
             urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
@@ -429,37 +408,10 @@ class NCBIDataDownloaderPrep:
                 with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
+        else:
+            raise ValueError('Link is Unspecified!')
+        
 
-        #provide your own mail here
-        #Entrez.email = "adjie.salman@stud.uni-due.de"
-        #Entrez.api_key = "726c2709d1827c981a38403d4a7d99e5cf08"
-        #handle = Entrez.esearch(db="assembly", term=name, retmax='200')
-        #record = Entrez.read(handle)
-        #ids = record['IdList']
-        #print (f'found {len(ids)} ids')
-        #links = []
-        #for id in ids:
-            #get summary
-        #    summary = self._get_assembly_summary(id)
-            #get ftp link
-            # for now going forward no refseq files are going to be used!
-        #    url = summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_GenBank']
-        #    if url == '':
-        #        continue
-        #    label = os.path.basename(url)
-            #get the fasta link - change this to get other formats
-        #    link = os.path.join(url,label+'_cds_from_genomic.fna.gz')
-        #    print (link)
-        #    links.append(link)
-        #    if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
-                #download link
-        #        urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
-        #        with gzip.open(SEQUENCES_FOLDER+f'/{name}.fna.gz', 'rb') as f_in:
-        #            with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
-        #                shutil.copyfileobj(f_in, f_out)
-        #        os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
-        # now no need to return!
-        # return links
         
         
     def _fill_metrics_genome(self):
@@ -666,28 +618,9 @@ class NCBIDataDownloaderPrep:
                 gene['std_cub'][cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])/self.std_cub[cds.upper()]
                 
         
-            
-        
-        
-            
-            
-            
-            
-        
-        
-        
-        
     def _fill_metrics_genes(self):
         #second loop to calc SD1,2,3,T for each gene
         print('here')
-        
-            
-        
-            
-        
-        
-        
-        
         
         
     def __len__(self):
@@ -803,10 +736,12 @@ class TestNCBIDataLoaderPrep(unittest.TestCase):
         dataset = NCBIDatasetSequential('A','partition_file/phylum_Fibrobacterota_test_available.csv','annotate' )
         print(dataset[0])
         assert len(dataset) ==2, "Something wrong wtih dataset sequential"
+        
+        
     
-    #def test_prep_genome(self):
-    #    genome = NCBIDataDownloaderPrep('AL009126')
-    #    assert len(genome) != 0, "cannot access length"
+    def test_prep_genome(self):
+        genome = NCBIDataDownloaderPrep('AL009126')
+        assert len(genome) != 0, "cannot access length"
         
     #def test_prep_genome_csv_out(self):
     #    genome = NCBIDataDownloaderPrep('AL009126')
@@ -821,4 +756,5 @@ class TestNCBIDataLoaderPrep(unittest.TestCase):
 
 if __name__ == '__main__':
     #args = parse_args()
+    #test = NCBIDataDownloaderPrep('AAA.csv')
     unittest.main()
