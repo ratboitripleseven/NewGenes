@@ -39,6 +39,13 @@ def parse_args():
         default = 'train',
         help = 'Choose mode: train or eval'
     )
+    parser.add_argument(
+        '-a',
+        '--annotate',
+        type = str,
+        default = None,
+        help = 'Path for Annotate'
+    )
     return parser.parse_args()
 
 
@@ -159,14 +166,20 @@ def assert_config(args):
         'nonsequential'
     ]
     list_of_data_type = ['A','B','C','D','E','F']
-    list_of_mode = ['train', 'eval', 'annotate']
+    # list_of_mode = ['train', 'eval', 'annotate']
+    list_of_mode = ['train', 'eval']
     
     print('-*-'*20)
-    ## check args
+    ## check mode
     if args.mode not in list_of_mode:
         raise ValueError('Unknown mode chosen! choose train or load!')
     else:
         print(f'Selected mode: \n\t{args.mode}')
+    # check if annotating
+    # Note: when annotating mode is supposed to be set to eval
+    if args.annotate:
+        if args.mode != 'eval':
+            raise ValueError('When annotating, the mode should be set to eval')
     
     # load yaml file
     configuration_file = ROOT_CONFIGURATION_FOLDER+args.config+'.yaml'
@@ -223,10 +236,7 @@ def main():
     algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
     print(algorithm)
     
-    if args.mode == 'annotate':
-        #partition_file/phylum_Fibrobacterota_test_available.csv
-        annotate_file = input("Specify the csv file for annotation\n")
-        annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
+    if args.annotate:
         dataloader = (None,None,None)
     else:
         dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
@@ -244,17 +254,16 @@ def main():
         test_model.model_eval()
         test_model.save_model()
     elif args.mode == 'eval':
-        test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'eval')
-        test_model.model_eval()
-    elif args.mode == 'annotate':
-        # TODO: This will be the main update
-        # should be like test_mode.model_annotate()
-        # the model annotate should have an NCBI file asn input
-        #   I think it is better to be partition of ncbi/fast files and not singular!
-        # and output as fasta or csv but annotated by the trained model
-        # start with DL then ML
-        test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'annotate')
-        test_model.model_annotate(annotate_dataset)
+        if args.annotate:
+            print('Evaluation: Annotating')
+            #annotate_file = 'partition_file/phylum_Fibrobacterota_test_available.csv'
+            annotate_file = args.annotate
+            annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
+            test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'annotate')
+            test_model.model_annotate(annotate_dataset)
+        else:
+            test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'eval')
+            test_model.model_eval()
 
 
 if __name__ == '__main__':
