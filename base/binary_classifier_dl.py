@@ -408,7 +408,7 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 
         for idx in range(len(y_pred_rounded)):
             print('***'*20)
-            print(f'Test genome no {genome_id[idx]} of length: {list_input_sizes[idx]} ')
+            print(f'Annotating genome:{genome_id[idx]} of length: {list_input_sizes[idx]} ')
             slice_index = list_input_sizes[idx]
             preds = y_pred_rounded[idx]
             preds_not_rounded =y_pred_not_rounded[idx]
