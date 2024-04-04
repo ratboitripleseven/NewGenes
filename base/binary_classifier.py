@@ -117,6 +117,10 @@ class BinaryClassifier:
         self._get_precision()
         self._get_roc_auc()
         
+    def model_annotate(self, annotated_dataset):
+        # TODO
+        raise NotImplementedError('Not Yet Implemented')
+        
         
     def _get_accuracy(self): 
         if self.accuracy is None:

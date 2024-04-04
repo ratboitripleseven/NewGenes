@@ -258,7 +258,11 @@ def main():
             print('Evaluation: Annotating')
             #annotate_file = 'partition_file/phylum_Fibrobacterota_test_available.csv'
             annotate_file = args.annotate
-            annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
+            if configuration['Model']['algorithm_type'] == 'c':
+                # TODO
+                raise NotImplementedError('Not yet implemented')
+            elif configuration['Model']['algorithm_type'] in ['d','e']:
+                annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
             test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'annotate')
             test_model.model_annotate(annotate_dataset)
         else:
