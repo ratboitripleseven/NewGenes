@@ -278,7 +278,7 @@ class NCBIDatasetSequential(torch.utils.data.Dataset):
         '''
         partition_frame = pd.read_csv(self.partition_file)
         if self.partition != 'annotate':
-            # if not annotate partition
+            # if not annotate then partition
             partition_frame = partition_frame[partition_frame['partition']==self.partition].reset_index(drop=True)
         
         
@@ -329,7 +329,7 @@ class NCBIDataDownloaderPrep:
         self.link = link
         # keys are locust_tag
         # not really a good way to handle error!
-        self.genes = self._prep_genome(name=name)
+        self.genes = self._prep_genome()
         if self.genes == 0:
             # self._download_genome(name=name)
             self._download_genome(self.name, self.link)
@@ -384,9 +384,13 @@ class NCBIDataDownloaderPrep:
         self._fill_metrics_genome()
         #self._fill_metrics_genes()
         
-    def _prep_genome(self, name)->dict:
+    def _prep_genome(self)->dict:
         # print('Prepping')
-        file_path = SEQUENCES_FOLDER+'/'+ name+'.fna'
+        if self.name.endswith('.fasta'):
+            # for non ncbi.. by passses
+            file_path = self.name
+        else:
+            file_path = SEQUENCES_FOLDER+'/'+ self.name+'.fna'
         print(f'file path : {file_path}')
         return prep_genome(file_path)
     
@@ -630,7 +634,7 @@ class NCBIDataDownloaderPrep:
         return self.genes[key]
     
 
-    def to_HGTDB(self, return_type='pd'):
+    def to_HGTDB(self, return_type='pd', file_name=None):
         '''
         Return the whole object into a dataframe style like HGTDB
         or print a csv
@@ -682,16 +686,29 @@ class NCBIDataDownloaderPrep:
             # return a pandas dataframe object
             return pd.DataFrame.from_dict(self.genes, orient='index')
         elif return_type == 'csv':
-            # return 0 
+            if not file_name:
+                raise ValueError('please input file name ending with csv!')
+            if not file_name.endswith('.csv'):
+                raise ValueError('File name should end with csv')
             # print a hgdtb like csv file
-            if not os.path.isdir(PREPPED_SEQUENCES_FOLDER):
-                os.makedirs(PREPPED_SEQUENCES_FOLDER)
-                print("creating folder : ", PREPPED_SEQUENCES_FOLDER)
+            
+            #if not os.path.isdir(PREPPED_SEQUENCES_FOLDER):
+            #    os.makedirs(PREPPED_SEQUENCES_FOLDER)
+            #    print("creating folder : ", PREPPED_SEQUENCES_FOLDER)
+            #df = pd.DataFrame.from_dict(self.genes, orient='index')
+            #print('printing csv... saving as {}.csv'.format(self.name))
+            #df.drop(columns=['g_count','a_count','c_count','t_count', 'rel_freq', '12_symbols', '48_symbols', 'cub','sequence','std_cub', 'RSCU', 'RFC', 'AA_Content_mean'], inplace=True)
+            #df['Mah'] = [float(x) for x in df['Mah']]
+            #df.to_csv(PREPPED_SEQUENCES_FOLDER+'{}.csv'.format(self.name))
+            #print('done printing')
+            
+            
+
             df = pd.DataFrame.from_dict(self.genes, orient='index')
-            print('printing csv... saving as {}.csv'.format(self.name))
+            print('printing csv...')
             df.drop(columns=['g_count','a_count','c_count','t_count', 'rel_freq', '12_symbols', '48_symbols', 'cub','sequence','std_cub', 'RSCU', 'RFC', 'AA_Content_mean'], inplace=True)
             df['Mah'] = [float(x) for x in df['Mah']]
-            df.to_csv(PREPPED_SEQUENCES_FOLDER+'{}.csv'.format(self.name))
+            df.to_csv(file_name)
             print('done printing')
             return 0
         
@@ -739,14 +756,19 @@ class TestNCBIDataLoaderPrep(unittest.TestCase):
         
         
     
-    def test_prep_genome(self):
-        genome = NCBIDataDownloaderPrep('AL009126')
-        assert len(genome) != 0, "cannot access length"
-        
-    #def test_prep_genome_csv_out(self):
+    #def test_prep_genome(self):
     #    genome = NCBIDataDownloaderPrep('AL009126')
-    #    test = genome.to_HGTDB('csv')
-    #    assert test == 0, 'something went wrong in creating csv'
+    #    assert len(genome) != 0, "cannot access length"
+        
+    def test_prep_genome_csv_out(self):
+        genome = NCBIDataDownloaderPrep('AL009126')
+        test = genome.to_HGTDB('csv', 'AL009126_test.csv')
+        assert test == 0, 'something went wrong in creating csv'
+        
+    def test_prep_genome_csv_out_2(self):
+        genome = NCBIDataDownloaderPrep('annotated_file_HGT/HGTDB_ALL/ASM221032v1.fasta')
+        test = genome.to_HGTDB('csv', 'ASM221032v1_test.csv')
+        assert test == 0, 'something went wrong in creating csv'
         
         
     
