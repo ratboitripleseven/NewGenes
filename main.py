@@ -59,7 +59,7 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'XGBOOST':
             return XGBClassifier()
         elif algorithm == 'HGBC':
-            raise HistGradientBoostingClassifier()
+            return HistGradientBoostingClassifier()
         else:
             raise ValueError(f'no such thing as {algorithm}')
     elif algorithm_type in ['d','e']:
@@ -165,7 +165,7 @@ def assert_config(args):
         'sequential',
         'nonsequential'
     ]
-    list_of_data_type = ['A','B','C','D','E','F']
+    list_of_data_type = ['A','B','C','D','E','F','G']
     # list_of_mode = ['train', 'eval', 'annotate']
     list_of_mode = ['train', 'eval']
     
@@ -260,7 +260,8 @@ def main():
             annotate_file = args.annotate
             if configuration['Model']['algorithm_type'] == 'c':
                 # TODO
-                raise NotImplementedError('Not yet implemented')
+                annotate_dataset = NCBIDataLoader(annotate_file,configuration['Dataset']['data_type'], True)
+                #raise NotImplementedError('Not yet implemented')
             elif configuration['Model']['algorithm_type'] in ['d','e']:
                 annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
             test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'annotate')
