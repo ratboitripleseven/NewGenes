@@ -25,6 +25,8 @@ def prep_genome(file_path)-> dict:
         except IOError:
             print(f"ERROR: The file {os.path.join(file_path)} does not exist")
             return 0
+    else:
+        raise ValueError('file does not have the extension .fna or .fasta')
         
     genes = dict()
     for i in range(len(lines)):
@@ -122,8 +124,8 @@ class TestNCBIDataLoaderPrep(unittest.TestCase):
         assert test!=0, "error!"
 
     def test_prep_fast_2(self):
-        test = prep_genome('data/NCBI/sequence_files/AE000657.fna')
-        #print(test)
+        test = prep_genome('data/NCBI/sequence_files/ASM668v1.fna')
+        print(test)
         assert test!=0, "error!"
 
 

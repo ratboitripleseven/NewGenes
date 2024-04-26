@@ -18,6 +18,7 @@ data/NCBI/cog-20.cog.csv
 data/NCBI/cog-20.def.tab
 data/HGTREE/version_1/*
 data/HGTREE/sequence_files/*
+data/prepped/*
 partition_file/*
 reference/*
 models/*
@@ -43,3 +44,7 @@ ignore/*
 .vscode/*
 deviation.ipynb
 post_14032024.ipynb
+notebooks/*
+test_data/*
+test/*
+15_genome/*

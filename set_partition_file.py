@@ -9,7 +9,7 @@ from data_loader.NCBI_data_loader import NCBIDataDownloaderPrep
 ROOT_FOLDER = 'partition_file/'
 
 # NCBI
-NCBI_SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
+NCBI_SEQUENCES_FOLDER = 'data/NCBI/sequence_files/'
 NCBI_PREPPED_SEQUENCES_FOLDER = 'data/NCBI/prep/'
 
 # new and better
@@ -84,12 +84,14 @@ def download_file(asm_name, link):
     
     
 def create_csv(ncbi_status, asm_name, link):
+    print(ncbi_status)
     if ncbi_status:
         ncbi_object = NCBIDataDownloaderPrep(asm_name,link)
         ncbi_object.to_HGTDB('csv', PREPPED_DATA_FOLDER+asm_name+'.csv')
     else:
         non_ncbi_object = NCBIDataDownloaderPrep(asm_name,link)
-        non_ncbi_object.to_HGTDB('csv', asm_name.replace('.fasta','.csv'))
+        extension = asm_name.split('.')[-1]
+        non_ncbi_object.to_HGTDB('csv', asm_name.replace(extension,'csv'))
         
         
 def set_partition_file(ncbi_status, file_path):
@@ -99,7 +101,7 @@ def set_partition_file(ncbi_status, file_path):
     if ncbi_status:
         for i in range(len(dataframe)):
             try:
-                download_file(ncbi_status,dataframe.loc[i,'asm_name'], dataframe.loc[i,'dl_link'])
+                download_file(dataframe.loc[i,'asm_name'], dataframe.loc[i,'dl_link'])
             except:
                 print(f"Unable to download {dataframe.loc[i,'asm_name']}, {dataframe.loc[i,'dl_link']} ")
         print('Files are downloaded')
@@ -107,11 +109,12 @@ def set_partition_file(ncbi_status, file_path):
         list_of_unavailable_csv_files = []
         print('Creating csvs for NCBI files')
         for i in range(len(dataframe)):
-            try:
-                create_csv(ncbi_status,dataframe.loc[i,'asm_name'], dataframe.loc[i,'dl_link'])
-            except:
-                list_of_unavailable_csv_files.append(i)
-                print(f"Unable to create csv for {dataframe.loc[i,'asm_name']} ")
+            create_csv(ncbi_status,dataframe.loc[i,'asm_name'], dataframe.loc[i,'dl_link'])
+            #try:
+            #    create_csv(ncbi_status,dataframe.loc[i,'asm_name'], dataframe.loc[i,'dl_link'])
+            #except:
+            #    list_of_unavailable_csv_files.append(i)
+            #    print(f"Unable to create csv for {dataframe.loc[i,'asm_name']} ")
     else:
         list_of_unavailable_csv_files = []
         print('Creating csvs for NON-NCBI files')
@@ -120,8 +123,12 @@ def set_partition_file(ncbi_status, file_path):
     print('#'*80)
     new_file_path = file_path.replace('.csv', '_RTR.csv')
     new_dataframe = dataframe.drop(index=list_of_unavailable_csv_files)
-    if not ncbi_status:
-        new_dataframe['file_path'] = [i.replace('.fasta', '.csv') for i in new_dataframe['file_path']]
+    if ncbi_status:
+        new_dataframe['file_path'] = [PREPPED_DATA_FOLDER+i+'.csv' for i in new_dataframe['asm_name']]
+        new_dataframe['ori_path'] = [NCBI_SEQUENCES_FOLDER+i+'.fna' for i in new_dataframe['asm_name']]
+    else:
+        new_dataframe['ori_path'] = [i for i in new_dataframe['file_path']]
+        new_dataframe['file_path'] = [i.replace(i.split('.')[-1], 'csv') for i in new_dataframe['file_path']]
     print(f'new partition file created only with succesful downloads')
     print(f"please check {new_file_path}")
     new_dataframe.to_csv(new_file_path, index=False)
