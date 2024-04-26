@@ -151,21 +151,17 @@ class BinaryClassifierDLBase:
             os.makedirs(folder_name)
             print("creating annotation folder : ", folder_name)
             
-        root_prep_file = 'data/NCBI/prep/'
+        print(list_of_genomes)
         for idx, genome in enumerate(list_of_genomes):
-            #genome_df = pd.read_csv(root_prep_file+genome+'.csv')
-            # genome_df=pd.DataFrame(prep_genome(SEQUENCES_FOLDER, genome))
-            #test=prep_genome(SEQUENCES_FOLDER, genome)
-            #print(len(test))
-            #genome_df['HGT'] = list_of_hgts[idx]
-            #genome_df = genome_df[['sequences','HGT']]
-            #genome_df.to_csv(folder_name+genome+'.csv', index=False)
-            f = open(folder_name+'/'+genome+'.fasta', 'w')
-            file_path = SEQUENCES_FOLDER+'/'+ genome+'.fna'
-            # genome_dict = prep_genome(SEQUENCES_FOLDER, genome)
-            genome_dict = prep_genome(file_path)
+            genome_dict = prep_genome(genome)
+            
+            output_name = genome.split('/')[-1]
+            output_name = output_name.replace(output_name.split('.')[-1],'fasta')
+            output_name = folder_name+'/'+output_name
+            f = open(output_name, 'w')
+            #print(genome_dict)
             for i,gene in enumerate(genome_dict):
-                f.write(">" + gene+ " HGT: " + str(int(list_of_hgts[idx][i])) + "\n" + genome_dict[gene]['sequence'] + "\n")
+                f.write(">" + gene+ " [HGT:" + str(int(list_of_hgts[idx][i]))+"]"+ "\n" + genome_dict[gene]['sequence'] + "\n")
             f.close()
             
             
@@ -317,6 +313,9 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 y_pred_true.append((targets[i].detach().numpy().tolist(), output[i].detach().round().numpy().tolist()))
                 y_pred_not_rounded.append( output[i].detach().numpy().tolist())
                 
+        all_targs = []
+        all_preds = []        
+        
         for idx in range(len(y_pred_true)):
             print('***'*20)
             print(f'Test genome no {idx} of length: {list_input_sizes[idx]} ')
@@ -340,6 +339,10 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
             print('Confusion matrix:')
             print(conf_mat)
             
+            # aggregate all
+            all_targs.extend(targs)
+            all_preds.extend(preds)
+            
             self.logger.info(f'test acc: {acc}')
             self.logger.info(f'test prec: {prec}')
             self.logger.info(f'test recall: {reca}')
@@ -348,6 +351,32 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
             self.logger.info('Confusion matrix:')
             self.logger.info(conf_mat)
             
+        print('***'*20)
+        print('Complete Evaluation')
+        print('***'*20)
+        total_acc = metrics.accuracy_score(all_targs, all_preds)
+        total_prec = metrics.precision_score(all_targs, all_preds)
+        total_reca = metrics.recall_score(all_targs, all_preds)
+        total_f1_score = metrics.f1_score(all_targs, all_preds)
+        total_conf_mat = metrics.confusion_matrix(all_targs, all_preds)
+        
+        print(f'test acc: {total_acc}')
+        print(f'test prec: {total_prec}')
+        print(f'test recall: {total_reca}')
+        print(f'test f1: {total_f1_score}')
+        print('Confusion matrix:')
+        print(total_conf_mat)
+        
+        self.logger.info('***'*20)
+        self.logger.info('Complete Evaluation')
+        self.logger.info('***'*20)
+        self.logger.info(f'test acc: {total_acc}')
+        self.logger.info(f'test prec: {total_prec}')
+        self.logger.info(f'test recall: {total_reca}')
+        self.logger.info(f'test f1: {total_f1_score}')
+        self.logger.info('Confusion matrix:')
+        self.logger.info(conf_mat)
+        
         
         #print('***'*20)
         #print(f'Trained for {self.epoch} epochs')
