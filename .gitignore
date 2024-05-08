@@ -48,3 +48,6 @@ notebooks/*
 test_data/*
 test/*
 15_genome/*
+outbreak_genome/*
+15_genome.ipynb
+outbreak_genome.ipynb
