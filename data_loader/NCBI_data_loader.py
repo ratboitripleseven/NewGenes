@@ -25,6 +25,9 @@ from Bio import Entrez
 import urllib
 import gzip
 import shutil
+import torch
+from sklearn import preprocessing
+from torch.nn.utils.rnn import pad_sequence
 SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
 PREPPED_SEQUENCES_FOLDER = 'data/NCBI/prep/'
 CODE = {
@@ -56,17 +59,22 @@ def parse_args():
     )
     
 class NCBIDataLoader:
-    def __init__(self, partition_file, data_type = 'F'):
+    '''
+    This is for classical (?)
+    '''
+    def __init__(self, partition_file, data_type = 'F', annotate=False):
         self.partition_file = partition_file
-        self.partition_frame = None
-        self._check_prepped_file_availability()
+        #self.partition_frame = None
+        self.partition_frame = pd.read_csv(self.partition_file)
+        self.annotate = annotate
+        #self._check_prepped_file_availability()
         self.data_type = data_type
         
     
     def _check_prepped_file_availability(self):
         self.partition_frame  = pd.read_csv(self.partition_file)
         for i in range(len(self.partition_frame)):
-            identifier = self.partition_frame.loc[i,'GenBank accession number']
+            identifier = self.partition_frame.loc[i,'asm_name']
             link = self.partition_frame.loc[i,'link']
             # check if file is prepped
             if not os.path.isfile(PREPPED_SEQUENCES_FOLDER+identifier+'.csv'):
@@ -84,55 +92,321 @@ class NCBIDataLoader:
         elif self.data_type == 'D':
             raise NotImplementedError('Not yet implemented')
         elif self.data_type == 'E':
-            raise NotImplementedError('Not yet implemented')
+            # So z score is basically what is calculated for sd1,2,3,t
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            columns_to_drop = ["gene","protein","protein_id","location","GC1","GC2","GC3","GCT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]
+            columns = 4
         elif self.data_type == 'F':
             columns_to_drop = ["gene", "protein_id","protein", "location", "GC1","GC2","GC3", "GCT", "Sim1", "Sim2", "Sim3", "SimT", "SimGC", "SimMah"]
             columns = 6
+        elif self.data_type == 'G':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # E but range form 01
+            columns_to_drop = ["gene","protein","protein_id","location","GC1","GC2","GC3","GCT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]
+            columns = 4
         else:
             raise ValueError(f'No data type {self.data_type}')
         
         X_train = np.array([]).reshape(0,columns)
-        y_train = np.array([]).reshape(0,)
         X_test = np.array([]).reshape(0,columns)
+        y_train = np.array([]).reshape(0,)
         y_test = np.array([]).reshape(0,)
         
         for i in range(len(self.partition_frame)):
-            identifier = self.partition_frame.loc[i,'GenBank accession number']
-            temp_data = pd.read_csv(PREPPED_SEQUENCES_FOLDER+identifier+'.csv', index_col=0)
-            temp_data['HGT'] = temp_data['HGT'].fillna(0)
-            temp_data['HGT'] = temp_data['HGT'].replace('H',1)
-            # TODO:think about this better
-            temp_data[ temp_data['Dev.AA'] != '[]'] = 1
-            temp_data['Dev.AA'] = temp_data['Dev.AA'].replace('[]', 0)
-            
+            #identifier = self.partition_frame.loc[i,'asm_name']
+            #temp_data = pd.read_csv(PREPPED_SEQUENCES_FOLDER+identifier+'.csv', index_col=0)
+            file_path=self.partition_frame.loc[i,'file_path']
+            ori_path = []
+            temp_data = pd.read_csv(file_path, index_col=0)
             temp_data = temp_data.drop(columns=columns_to_drop)
+            #print(temp_data)
+            if self.data_type == 'F':
+                temp_data['HGT'] = temp_data['HGT'].fillna(0)
+                temp_data['HGT'] = temp_data['HGT'].replace('H',1)
+                # TODO:think about this better
+                temp_data[ temp_data['Dev.AA'] != '[]'] = 1
+                temp_data['Dev.AA'] = temp_data['Dev.AA'].replace('[]', 0)
+            elif self.data_type == 'E':
+                # range of -1 to 1
+                temp_data['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in temp_data['SD1']]
+                temp_data['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in temp_data['SD2']]
+                temp_data['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in temp_data['SD3']]
+                temp_data['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in temp_data['SDT']]
+            elif self.data_type == 'G':
+                temp_data['SD1'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1) for x in temp_data['SD1']]
+                temp_data['SD2'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in temp_data['SD2']]
+                temp_data['SD3'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in temp_data['SD3']]
+                temp_data['SDT'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in temp_data['SDT']]
+                
+            
+                
             array = temp_data.values
             
-            X,y = array[:,0:-1], array[:,-1]
-            if self.partition_frame.loc[i,'partition'] == 'train':
-                X_train = np.concatenate([X, X_train], axis = 0)
-                y_train = np.concatenate([y, y_train], axis = 0)
+            if self.annotate:
+                to_annotate = array
+                # ys holds the file path to the original data fna (ori_path) and lenght
+                #y = np.zeros(len(X))
+                ori_path=self.partition_frame.loc[i,'ori_path']
+                ori_path = np.expand_dims(ori_path, axis=0)
+                
+                length_of_genome = len(to_annotate)
+                length_of_genome = np.expand_dims(length_of_genome, axis=0)
+                
+                #X_train = np.concatenate([X, X_train], axis = 0)
+                y_train = np.concatenate([length_of_genome, y_train], axis = 0)
+                
+                X_test = np.concatenate([to_annotate, X_test], axis = 0)
+                y_test = np.concatenate([ori_path, y_test], axis = 0)
             else:
-                X_test = np.concatenate([X, X_test], axis = 0)
-                y_test = np.concatenate([y, y_test], axis = 0)
-        
+                X,y = array[:,0:-1], array[:,-1]
+                
+                if self.partition_frame.loc[i,'partition'] == 'train':
+                    X_train = np.concatenate([X, X_train], axis = 0)
+                    y_train = np.concatenate([y, y_train], axis = 0)
+                else:
+                    X_test = np.concatenate([X, X_test], axis = 0)
+                    y_test = np.concatenate([y, y_test], axis = 0)
+                
+            #if self.annotate:
+            #    X_test = np.concatenate([X, X_test], axis = 0)
+            #    y_test = np.concatenate([y, y_test], axis = 0)
+            #else:
+            #    if self.partition_frame.loc[i,'partition'] == 'train':
+            #        X_train = np.concatenate([X, X_train], axis = 0)
+            #        y_train = np.concatenate([y, y_train], axis = 0)
+            #    else:
+            #        X_test = np.concatenate([X, X_test], axis = 0)
+            #        y_test = np.concatenate([y, y_test], axis = 0)
+                
+                
         return X_train, y_train, X_test, y_test
             
         
+class NCBIDatasetSequential(torch.utils.data.Dataset):
+    def __init__(self, data_type, partition_file, partition):
+        '''
+        Note: Annotate is not suppose to have any labls as it is supposed to be used to annotate them!
+        
+        '''
+        # Annotate bypasses any partition and just us th whole partition file to load
+        if partition not in ['train','test','valid','annotate']:
+            raise ValueError('not partition or train, test or valid!')
+        
+        
+        
+        self.partition = partition
+        self.data_type = data_type
+        self.partition_file = partition_file
+        self.min_max_scaler = preprocessing.MinMaxScaler()
+        # self.one_hot_encoder = preprocessing.OneHotEncoder()
+        # self.drop_na = drop_na
+        self.null_count = 0
+        self.na_count = 0
+        
+        self.max_sequence = 0
+        
+        # load all in ram perhaps?
+        self.data_x = []
+        self.data_y = []
+        self.data_seq_length = []
+        self.data_id = []
+        
+        
+        self._init_dataset()
+        
+    def _load_single_file(self, species, data_type):
+        '''
+        I took this from HGTDB squential data laoder
+        '''
 
+        #preprocessed_path = PREPPED_SEQUENCES_FOLDER
+        
+        #csv_list = os.listdir(preprocessed_path)
+        
+    
+        #if species is not None:
+        #    csv_file = None
+        #    for path in csv_list:
+        #        # check if current path is a file
+        #        if os.path.basename(path).replace(".csv", "") == species:
+        #            csv_file =os.path.join(preprocessed_path, path)
+        #            df = pd.read_csv(csv_file)
+        #    if csv_file is None:
+        #        raise ValueError(f'{species} not found')
+        #else:
+        #    raise ValueError(f'{species} not found')
+        
+        df = pd.read_csv(species)
+        
+        # need to drop the first unnamed column!
+        df = df.drop(df.columns[0],axis=1)
+            
+        # set dataset according to data type
+        if data_type == 'A':
+            df = df.drop(columns=["gene","protein","protein_id","location","SD1","SD2","SD3","SDT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]) # only GC1,GC2,GC3,GCT
+        elif data_type == 'B':
+            df = df.drop(columns=["FunctionCode","Strand","Length","SD1","SD2","SD3","SDT"]) # only GC1,GC2,GC3,GCT,Mah,AADev
+        elif data_type == 'C':
+            # C is basically A but padding is with 0.666 instead of 0
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","SD1","SD2","SD3","SDT","Mah"]) # only GC1,GC2,GC3,GCT
+        elif data_type == 'D':
+            # So z score is basically what is calculated for sd1,2,3,t
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
+        elif data_type == 'E':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["gene","protein","protein_id","location","GC1","GC2","GC3","GCT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]) # only SD1,SD2,SD3,SDT
+        elif data_type == 'F':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # z score for mah is added here
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT"]) # only SD1,SD2,SD3,SDT, Mah
+        elif data_type == 'G':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # data range from 01
+            df = df.drop(columns=["gene","protein","protein_id","location","GC1","GC2","GC3","GCT","Mah","Sim1","Sim2","Sim3","SimT","SimMah","Dev.AA","SimGC", "HGT"]) # only SD1,SD2,SD3,SDT
+        
+        
+        #print(df)
+        # count nulls!
+        #df.bfill(inplace=True)
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+        df = df.bfill(axis='columns')
+        #for column in df.columns:
+        #    df[column] = df[column].fillna(0)
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+
+        
+        
+        if data_type == 'D':
+            pass
+        elif data_type == 'E':
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+        elif data_type == 'F':
+            # need to reindex!
+            df=df.reset_index(drop=True)
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+            
+            # calculate mean mah
+            mean_Mah = df['Mah'].sum()/len(df)
+            # calculate sdmah
+            sum_of_mah_diffs = 0
+            for gene_idx in range(len(df)):
+                mah_diff = df.loc[gene_idx, 'Mah'] - mean_Mah
+                squared_mah_diff = mah_diff * mah_diff
+                sum_of_mah_diffs = sum_of_mah_diffs + squared_mah_diff
+                
+            sd_mah = math.sqrt(sum_of_mah_diffs/len(df))
+            
+            # calculate deviation for each val
+            standard_deviation = []
+            for x in df['Mah']:
+                standard_deviation.append( (x - mean_Mah)/ sd_mah )
+                
+            # cut off and divide by 2
+            standard_deviation_standardized = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in standard_deviation]
+            # replace mah values (i think this is fine)
+            df['Mah'] = standard_deviation_standardized
+        elif data_type == 'G':
+            df['SD1'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1) for x in df['SD1']]
+            df['SD2'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SD2']]
+            df['SD3'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SD3']]
+            df['SDT'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SDT']]
+        else:
+            df=(df-df.min())/(df.max()-df.min())
+        array = df.values
+        
+        if self.partition != 'annotate':
+            x = array[:,0:-1]
+            y = array[:,-1]
+            y = np.expand_dims(y, axis=1)
+        else:
+            x = array
+            y = np.zeros(len(x))
+
+
+        return x,y 
+        
+    
+    def _init_dataset(self):
+        '''
+        '''
+        partition_frame = pd.read_csv(self.partition_file)
+        if self.partition != 'annotate':
+            # if not annotate then partition
+            partition_frame = partition_frame[partition_frame['partition']==self.partition].reset_index(drop=True)
+        
+        
+        for i in range(len(partition_frame)):
+            #x,y = self._load_single_file(partition_frame.loc[i,'asm_name'], self.data_type)
+            x,y = self._load_single_file(partition_frame.loc[i,'file_path'], self.data_type)
+            
+            if self.max_sequence<len(x):
+                self.max_sequence = len(x)
+                
+            #self.data_id.append(partition_frame.loc[i,'asm_name'])
+            #self.data_id.append(partition_frame.loc[i,'file_path'].split('/')[-1])
+            #self.data_id.append(partition_frame.loc[i,'file_path'])
+            self.data_id.append(partition_frame.loc[i,'ori_path'])
+            self.data_x.append(torch.from_numpy(np.float32(x)))
+            self.data_y.append(torch.from_numpy(np.float32(y)))
+            self.data_seq_length.append(torch.tensor(len(x)))
+            
+        # pad 'sequences'
+        # padded stuff are tagged as 0!
+        if self.data_type == 'C':
+            self.data_x = pad_sequence(self.data_x, batch_first=True, padding_value=0.666)
+        else:
+            self.data_x = pad_sequence(self.data_x, batch_first=True)
+        self.data_y = pad_sequence(self.data_y, batch_first=True)
+
+    def __getitem__(self, ind):
+        datum = self.data_x[ind]
+        label = self.data_y[ind]
+        seq_length = self.data_seq_length[ind]
+        data_id = self.data_id[ind]
+        
+        output = {
+            "datum" : datum,
+            "seq_length" : seq_length,
+            "data_id" : data_id,
+            "label" : label
+        }
+        return output
+    
+    def __len__(self):
+        return len(self.data_x)
+        
+        
+        
+        
 
 class NCBIDataDownloaderPrep:
-    def __init__(self, name, link):
+    def __init__(self, name, link=None):
         
         self.name = name
         self.link = link
         # keys are locust_tag
         # not really a good way to handle error!
-        self.genes = self._prep_genome(name=name)
-        if self.genes == 0:
+        self.genes = self._prep_genome()
+        if self.link:
             # self._download_genome(name=name)
-            self._download_genome(self.name, self.link)
-            self.genes = self._prep_genome(name=name)
+            #self._download_genome(self.name, self.link)
+            self.genes = self._prep_genome()
         
         
         #init metrics to 0
@@ -183,15 +457,23 @@ class NCBIDataDownloaderPrep:
         self._fill_metrics_genome()
         #self._fill_metrics_genes()
         
-    def _prep_genome(self, name)->dict:
+    def _prep_genome(self)->dict:
         # print('Prepping')
-        return prep_genome(SEQUENCES_FOLDER,name)
-    
-    def _get_assembly_summary(self, id):
-        """Get esummary for an entrez id"""
-        esummary_handle = Entrez.esummary(db="assembly", id=id, report="full")
-        esummary_record = Entrez.read(esummary_handle)
-        return esummary_record
+        #if self.name.endswith('.fasta'):
+        #    # for non ncbi.. by passses
+        #    file_path = self.name
+        #else:
+        #    file_path = SEQUENCES_FOLDER+'/'+ self.name+'.fna'
+        #print(f'file path : {file_path}')
+        #return prep_genome(file_path)
+        if self.link:
+            # for ncbi.. by passses
+            file_path = SEQUENCES_FOLDER+'/'+ self.name+'.fna'
+        else:
+            #when given a path
+            file_path = self.name
+        print(f'file path : {file_path}')
+        return prep_genome(file_path)
     
     def _download_genome(self, name, link):
         #def get_assemblies(term, download=True, path='sequence_files'):
@@ -203,7 +485,7 @@ class NCBIDataDownloaderPrep:
             path: folder to save to
         """
         
-        if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
+        if link:
             #download link
             print(f'downloading {name}, at {link} ')
             urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
@@ -211,37 +493,10 @@ class NCBIDataDownloaderPrep:
                 with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
             os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
+        #else:
+            #raise ValueError('Link is Unspecified!')
+        
 
-        #provide your own mail here
-        #Entrez.email = "adjie.salman@stud.uni-due.de"
-        #Entrez.api_key = "726c2709d1827c981a38403d4a7d99e5cf08"
-        #handle = Entrez.esearch(db="assembly", term=name, retmax='200')
-        #record = Entrez.read(handle)
-        #ids = record['IdList']
-        #print (f'found {len(ids)} ids')
-        #links = []
-        #for id in ids:
-            #get summary
-        #    summary = self._get_assembly_summary(id)
-            #get ftp link
-            # for now going forward no refseq files are going to be used!
-        #    url = summary['DocumentSummarySet']['DocumentSummary'][0]['FtpPath_GenBank']
-        #    if url == '':
-        #        continue
-        #    label = os.path.basename(url)
-            #get the fasta link - change this to get other formats
-        #    link = os.path.join(url,label+'_cds_from_genomic.fna.gz')
-        #    print (link)
-        #    links.append(link)
-        #    if not os.path.isfile(SEQUENCES_FOLDER+f'/{name}.fna'):
-                #download link
-        #        urllib.request.urlretrieve(link, SEQUENCES_FOLDER+f'/{name}.fna.gz')
-        #        with gzip.open(SEQUENCES_FOLDER+f'/{name}.fna.gz', 'rb') as f_in:
-        #            with open(SEQUENCES_FOLDER+f'/{name}.fna', 'wb') as f_out:
-        #                shutil.copyfileobj(f_in, f_out)
-        #        os.remove(SEQUENCES_FOLDER+f'/{name}.fna.gz')
-        # now no need to return!
-        # return links
         
         
     def _fill_metrics_genome(self):
@@ -448,28 +703,9 @@ class NCBIDataDownloaderPrep:
                 gene['std_cub'][cds.upper()] = (gene['cub'][cds.upper()] - self.mean_cub[cds.upper()])/self.std_cub[cds.upper()]
                 
         
-            
-        
-        
-            
-            
-            
-            
-        
-        
-        
-        
     def _fill_metrics_genes(self):
         #second loop to calc SD1,2,3,T for each gene
         print('here')
-        
-            
-        
-            
-        
-        
-        
-        
         
         
     def __len__(self):
@@ -479,7 +715,7 @@ class NCBIDataDownloaderPrep:
         return self.genes[key]
     
 
-    def to_HGTDB(self, return_type='pd'):
+    def to_HGTDB(self, return_type='pd', file_name=None):
         '''
         Return the whole object into a dataframe style like HGTDB
         or print a csv
@@ -531,16 +767,29 @@ class NCBIDataDownloaderPrep:
             # return a pandas dataframe object
             return pd.DataFrame.from_dict(self.genes, orient='index')
         elif return_type == 'csv':
-            # return 0 
+            if not file_name:
+                raise ValueError('please input file name ending with csv!')
+            if not file_name.endswith('.csv'):
+                raise ValueError('File name should end with csv')
             # print a hgdtb like csv file
-            if not os.path.isdir(PREPPED_SEQUENCES_FOLDER):
-                os.makedirs(PREPPED_SEQUENCES_FOLDER)
-                print("creating folder : ", PREPPED_SEQUENCES_FOLDER)
+            
+            #if not os.path.isdir(PREPPED_SEQUENCES_FOLDER):
+            #    os.makedirs(PREPPED_SEQUENCES_FOLDER)
+            #    print("creating folder : ", PREPPED_SEQUENCES_FOLDER)
+            #df = pd.DataFrame.from_dict(self.genes, orient='index')
+            #print('printing csv... saving as {}.csv'.format(self.name))
+            #df.drop(columns=['g_count','a_count','c_count','t_count', 'rel_freq', '12_symbols', '48_symbols', 'cub','sequence','std_cub', 'RSCU', 'RFC', 'AA_Content_mean'], inplace=True)
+            #df['Mah'] = [float(x) for x in df['Mah']]
+            #df.to_csv(PREPPED_SEQUENCES_FOLDER+'{}.csv'.format(self.name))
+            #print('done printing')
+            
+            
+
             df = pd.DataFrame.from_dict(self.genes, orient='index')
-            print('printing csv... saving as {}.csv'.format(self.name))
+            print('printing csv...')
             df.drop(columns=['g_count','a_count','c_count','t_count', 'rel_freq', '12_symbols', '48_symbols', 'cub','sequence','std_cub', 'RSCU', 'RFC', 'AA_Content_mean'], inplace=True)
             df['Mah'] = [float(x) for x in df['Mah']]
-            df.to_csv(PREPPED_SEQUENCES_FOLDER+'{}.csv'.format(self.name))
+            df.to_csv(file_name)
             print('done printing')
             return 0
         
@@ -576,24 +825,56 @@ class NCBIDataDownloaderPrep:
 class TestNCBIDataLoaderPrep(unittest.TestCase):
     
     def test_dataloader(self):
-        dataloader = NCBIDataLoader('partition_file/class_chlorobia.csv')
+        dataloader = NCBIDataLoader('partition_file/phylum_Myxococcota_tiny_RTR.csv', 'F')
         x1,y1,x2,y2 = dataloader.dataset_prep()
+        #print(x1)
         assert len(x1)!=0, "error!"
-    
-    
-    #def test_init_positive(self):
-    #    genome = NCBIDataDownloaderPrep('AE000657')
-    #    assert genome.genes is not None, "Somthing is wrong when reading file"
-    
-    #def test_prep_genome(self):
-    #    genome = NCBIDataDownloaderPrep('AL009126')
-    #    assert len(genome) != 0, "cannot access length"
         
-    #def test_prep_genome_csv_out(self):
-    #    genome = NCBIDataDownloaderPrep('AL009126')
-    #    test = genome.to_HGTDB('csv')
-    #    assert test == 0, 'something went wrong in creating csv'
+    def test_dataloader_2(self):
+        #dataloader = NCBIDataLoader('partition_file/phylum_Myxococcota_tiny_RTR.csv', 'E',True)
+        dataloader = NCBIDataLoader('test_data/15_test_data_RTR_single.csv', 'E',True)
+        _,length_of_genome,to_annotate,ori_path = dataloader.dataset_prep()
+        print(ori_path)
+        print(length_of_genome)
+        assert len(to_annotate)!=0, "error!"
+    
+    def test_dataloader_g(self):
+        #dataloader = NCBIDataLoader('partition_file/phylum_Myxococcota_tiny_RTR.csv', 'E',True)
+        dataloader = NCBIDataLoader('test_data/15_test_data_RTR_single.csv', 'G',True)
+        _,length_of_genome,to_annotate,ori_path = dataloader.dataset_prep()
+        print(ori_path)
+        print(length_of_genome)
+        assert len(to_annotate)!=0, "error!"
+    
+    
+    def test_NCBI_Sequential_E(self):
+        dataset = NCBIDatasetSequential('E','test_data/15_test_data_RTR_single.csv','annotate' )
+        print('Test set E')
+        print(dataset[0])
+        assert len(dataset) >1, "Something wrong wtih dataset sequential"
+    
+    def test_NCBI_Sequential_G(self):
+        dataset = NCBIDatasetSequential('G','test_data/15_test_data_RTR_single.csv','annotate' )
+        print('Test set G')
+        print(dataset[0])
+        assert len(dataset) >1, "Something wrong wtih dataset sequential"
         
+        
+    ''' 
+    def test_prep_genome(self):
+        genome = NCBIDataDownloaderPrep('ASM904v1','ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/009/045/GCA_000009045.1_ASM904v1/GCA_000009045.1_ASM904v1_cds_from_genomic.fna.gz')
+        assert len(genome) != 0, "cannot access length"
+        
+    def test_prep_genome_csv_out(self):
+        genome = NCBIDataDownloaderPrep('data/NCBI/sequence_files/AL009126.fna')
+        test = genome.to_HGTDB('csv', 'AL009126_test.csv')
+        assert test == 0, 'something went wrong in creating csv'
+        
+    def test_prep_genome_csv_out_2(self):
+        genome = NCBIDataDownloaderPrep('annotated_file_HGT/HGTDB_ALL/ASM221032v1.fasta')
+        test = genome.to_HGTDB('csv', 'ASM221032v1_test.csv')
+        assert test == 0, 'something went wrong in creating csv'
+    '''
         
     
 
@@ -602,4 +883,5 @@ class TestNCBIDataLoaderPrep(unittest.TestCase):
 
 if __name__ == '__main__':
     #args = parse_args()
+    #test = NCBIDataDownloaderPrep('AAA.csv')
     unittest.main()

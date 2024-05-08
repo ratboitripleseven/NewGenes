@@ -1,56 +1,74 @@
 '''
 This script takes in .fna file and then return genes in dict
 '''
+import unittest
 import os
 import sys
 sys.path.append("../../../../../NewGenes")
-SEQUENCES_FOLDER = 'data/NCBI/sequence_files'
 
-def prep_genome(sequence_folder,genome)-> dict:
-    if not os.path.isdir(sequence_folder):
-        sys.exit("The folder sequence_files does not exist!")
-    
-    try:
-        with open(os.path.join(sequence_folder,genome+'.fna')) as f:
-            lines = f.readlines()
-    except IOError:
-        print(f"ERROR: The file {os.path.join(sequence_folder,genome)}.fna does not exist")
-        return 0
+
+def prep_genome(file_path)-> dict:
+    file_type = None
+    if file_path.endswith('.fna'):
+        file_type = 'fna'
+        try:
+            with open(os.path.join(file_path)) as f:
+                lines = f.readlines()
+        except IOError:
+            print(f"ERROR: The file {os.path.join(file_path)} does not exist")
+            return 0
+    elif file_path.endswith('.fasta'):
+        file_type = 'fasta'
+        try:
+            with open(os.path.join(file_path)) as f:
+                lines = f.readlines()
+        except IOError:
+            print(f"ERROR: The file {os.path.join(file_path)} does not exist")
+            return 0
+    else:
+        raise ValueError('file does not have the extension .fna or .fasta')
         
     genes = dict()
     for i in range(len(lines)):
         s = lines[i].strip()
         if s[0] == '>':
-            # get locus_tag (gene)
-            locus_tag_index = s.find('locus_tag=')
-            if locus_tag_index == -1:
-                locus_tag = "No_Locust_Tag_{}".format(i)
-            else:
-                locus_tag_end_index = s.find(']', locus_tag_index)
-                locus_tag = s[locus_tag_index+10:locus_tag_end_index]
-            
-            # get gene (synonym name)
-            gene_index = s.find('gene=')
-            if gene_index == -1:
-                gene = None
-            else:
-                gene_end_index = s.find(']', gene_index)
-                gene = s[gene_index+5:gene_end_index]
-            
-            # get protein
-            protein_index = s.find('protein=')
-            protein_end_index = s.find(']', protein_index)
-            protein = s[protein_index+8:protein_end_index]
-            
-            # get protein id
-            protein_id_index = s.find('protein_id=')
-            protein_id_end_index = s.find(']', protein_id_index)
-            protein_id = s[protein_id_index+11:protein_id_end_index]
-            
-            # get location
-            location_index = s.find('location=')
-            location_end_index = s.find(']', location_index)
-            location = s[location_index+9:location_end_index]
+            if file_type == 'fna':
+                # get locus_tag (gene)
+                locus_tag_index = s.find('locus_tag=')
+                if locus_tag_index == -1:
+                    locus_tag = "No_Locust_Tag_{}".format(i)
+                else:
+                    locus_tag_end_index = s.find(']', locus_tag_index)
+                    locus_tag = s[locus_tag_index+10:locus_tag_end_index]
+                
+                # get gene (synonym name)
+                gene_index = s.find('gene=')
+                if gene_index == -1:
+                    gene = None
+                else:
+                    gene_end_index = s.find(']', gene_index)
+                    gene = s[gene_index+5:gene_end_index]
+                
+                # get protein
+                protein_index = s.find('protein=')
+                protein_end_index = s.find(']', protein_index)
+                protein = s[protein_index+8:protein_end_index]
+                
+                # get protein id
+                protein_id_index = s.find('protein_id=')
+                protein_id_end_index = s.find(']', protein_id_index)
+                protein_id = s[protein_id_index+11:protein_id_end_index]
+                
+                # get location
+                location_index = s.find('location=')
+                location_end_index = s.find(']', location_index)
+                location = s[location_index+9:location_end_index]
+            elif file_type == 'fasta':
+                locus_tag = "Tag_{}".format(i)
+                gene = s
+                protein = None
+                protein_id = None
+                location = None
             
             
             genes[locus_tag] = {
@@ -99,12 +117,18 @@ def prep_genome(sequence_folder,genome)-> dict:
         
     
         
-    
+class TestNCBIDataLoaderPrep(unittest.TestCase):
+    def test_prep_fast_1(self):
+        test = prep_genome('annotated_file_HGT/HGTDB_ALL/ASM221032v1.fasta')
+        #print(test)
+        assert test!=0, "error!"
 
+    def test_prep_fast_2(self):
+        test = prep_genome('data/NCBI/sequence_files/ASM668v1.fna')
+        print(test)
+        assert test!=0, "error!"
 
 
 
 if __name__ == '__main__':
-    genome = prep_genome(SEQUENCES_FOLDER,'bsub')
-    for i in genome:
-        print(i)
+    unittest.main()

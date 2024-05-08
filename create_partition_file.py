@@ -102,6 +102,15 @@ if __name__ == '__main__':
         os.makedirs(ROOT_FOLDER)
         print("creating folder : ", ROOT_FOLDER)
     
+    # added another column called dl_link
+    dl_link = []
+    for i in range(len(filtered_table)):
+        link = filtered_table.loc[i, 'link']
+        link = link.replace('https:','ftp:')
+        link = link+'/'+link.split('/')[-1]+'_cds_from_genomic.fna.gz'
+        dl_link.append(link)
+    filtered_table['dl_link'] = dl_link
+    
     # print out filtered table as partition file
     filtered_table.to_csv(ROOT_FOLDER+f'{args.level}_{args.name}.csv', index=False)
     print('Done')

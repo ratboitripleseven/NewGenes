@@ -2,6 +2,7 @@
 import argparse
 import yaml
 import logging
+import os
 
 #import models
 from lightgbm import LGBMClassifier
@@ -11,7 +12,7 @@ from dl_algo.long_short_term_memory import *
 
 #import dataloaders
 from data_loader.HGTDB_data_loader import HGTDBDataLoader, HGTDBDatasetSequential, HGTDBDatasetSequential_v2
-from data_loader.NCBI_data_loader import NCBIDataLoader
+from data_loader.NCBI_data_loader import NCBIDataLoader, NCBIDatasetSequential
 
 #import bases
 from base.binary_classifier import BinaryClassifier
@@ -38,6 +39,13 @@ def parse_args():
         default = 'train',
         help = 'Choose mode: train or eval'
     )
+    parser.add_argument(
+        '-a',
+        '--annotate',
+        type = str,
+        default = None,
+        help = 'Path for Annotate'
+    )
     return parser.parse_args()
 
 
@@ -51,7 +59,7 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'XGBOOST':
             return XGBClassifier()
         elif algorithm == 'HGBC':
-            raise HistGradientBoostingClassifier()
+            return HistGradientBoostingClassifier()
         else:
             raise ValueError(f'no such thing as {algorithm}')
     elif algorithm_type in ['d','e']:
@@ -157,24 +165,31 @@ def assert_config(args):
         'sequential',
         'nonsequential'
     ]
-    list_of_data_type = ['A','B','C','D','E','F']
+    list_of_data_type = ['A','B','C','D','E','F','G']
+    # list_of_mode = ['train', 'eval', 'annotate']
     list_of_mode = ['train', 'eval']
     
     print('-*-'*20)
-    ## check args
+    ## check mode
     if args.mode not in list_of_mode:
         raise ValueError('Unknown mode chosen! choose train or load!')
     else:
         print(f'Selected mode: \n\t{args.mode}')
+    # check if annotating
+    # Note: when annotating mode is supposed to be set to eval
+    if args.annotate:
+        if args.mode != 'eval':
+            raise ValueError('When annotating, the mode should be set to eval')
     
     # load yaml file
     configuration_file = ROOT_CONFIGURATION_FOLDER+args.config+'.yaml'
-    print(f'Configuration file: \n\t{configuration_file}')
-    try:
+    # check if yaml file exist
+    if os.path.isfile(configuration_file):
+        print(f'Configuration file: \n\t{configuration_file}')
         with open(configuration_file, "r") as yamlfile:
             configuration = yaml.load(yamlfile, Loader=yaml.FullLoader)
-    except FileNotFoundError:
-        print(f"File {configuration_file} not found!")
+    else:
+        raise FileNotFoundError(f"File {configuration_file} not found!")
         
     ## check configs
     # check dataset configs
@@ -220,7 +235,12 @@ def main():
     
     algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
     print(algorithm)
-    dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
+    
+    if args.annotate:
+        dataloader = (None,None,None)
+    else:
+        dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
+        
     
     
     print(configuration['Model']['params'])
@@ -234,10 +254,21 @@ def main():
         test_model.model_eval()
         test_model.save_model()
     elif args.mode == 'eval':
-        test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'eval')
-        test_model.model_eval()
-    
-    
+        if args.annotate:
+            print('Evaluation: Annotating')
+            #annotate_file = 'partition_file/phylum_Fibrobacterota_test_available.csv'
+            annotate_file = args.annotate
+            if configuration['Model']['algorithm_type'] == 'c':
+                # TODO
+                annotate_dataset = NCBIDataLoader(annotate_file,configuration['Dataset']['data_type'], True)
+                #raise NotImplementedError('Not yet implemented')
+            elif configuration['Model']['algorithm_type'] in ['d','e']:
+                annotate_dataset = NCBIDatasetSequential(configuration['Dataset']['data_type'], annotate_file, 'annotate')
+            test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'annotate')
+            test_model.model_annotate(annotate_dataset)
+        else:
+            test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'], 'eval')
+            test_model.model_eval()
 
 
 if __name__ == '__main__':

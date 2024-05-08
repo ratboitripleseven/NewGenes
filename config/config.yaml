@@ -1,0 +1,34 @@
+# This file should contain everything to configure the workflow on a global scale.
+# In case of sample based data, it should be complemented by a samples.tsv file that contains
+# one row per sample. It can be parsed easily via pandas.
+pepfile: config/pep/config.yaml
+
+# date of analysis or project name
+run_date: "HGT_DB"
+
+data_handling:
+  resources: "resources/"
+
+card:
+  data:
+    use_local: True
+    dbfile: "card.json"
+    local_path: "/groups/ds/databases_refGenomes/databases/latest/card/broadstreet-v3.2.9.tar.bz2"
+    url: "https://card.mcmaster.ca/latest/data"
+  ontology:
+    use_local: True
+    local_path: "/groups/ds/databases_refGenomes/databases/latest/card/ontology-v3.2.9.tar.bz2"
+    url: "https://card.mcmaster.ca/latest/ontology"
+
+plm_arg:
+  git: "https://github.com/Junwu302/PLM-ARG.git"
+  main: "PLM-ARG/plm_arg.py"
+  model:
+    use_local: True
+    local_path: "/groups/ds/databases_refGenomes/databases/latest/PLM-ARG/model/esm1b_t33_650M_UR50S.pt"
+    url: "https://dl.fbaipublicfiles.com/fair-esm/models/esm1b_t33_650M_UR50S.pt"
+  regression:
+    use_local: True
+    local_path: "/groups/ds/databases_refGenomes/databases/latest/PLM-ARG/regression/esm1b_t33_650M_UR50S-contact-regression.pt"
+    url: "https://dl.fbaipublicfiles.com/fair-esm/regression/esm1b_t33_650M_UR50S-contact-regression.pt"
+

@@ -17,21 +17,18 @@ class HGTDBDataLoader():
     def __init__(self, data_type, partition_file):
         self.data_type = data_type
         self.partition_file = partition_file
+        self.null_count = 0
+        self.na_count = 0
 
     
-    def _load_single_file(self, species, data_type, cross_partition = None, drop_na=False,return_df = False, genome_info = False):
+    def _load_single_file(self, species, data_type, drop_na=False, genome_info = False):
         '''
         species: 
             choose specific species or use all
         
         data_type: 
             choose from [A,B,C,D,E] 
-        
-        cross_partition: 
-            choose either train or test. This does 1 fold partition.
-            first 2/3 is for training
-            last 1/3 is for testing
-        
+                
         '''
         
         #if cross_partition is not None and return_folds is True: raise ValueError('Choose either cross partition OR folds!')
@@ -40,18 +37,6 @@ class HGTDBDataLoader():
         
         
         csv_list = os.listdir(preprocessed_path)
-        
-        if cross_partition is not None:
-            #assert species == 'all', 'cross partitioning is only available when loading all genomes'
-            if species != 'all': raise ValueError('cross partitioning is only available when loading all genomes')
-            
-            # partition 2:1 train, test
-            if cross_partition == 'train':
-                csv_list = csv_list[:int(len(csv_list)*(2/3))]
-            elif cross_partition == 'test':
-                csv_list = csv_list[int(len(csv_list)*(2/3)):]
-            else:
-                raise ValueError(f'No cross partition for {cross_partition}. Choose train or test')
         
         
         if species == 'all':
@@ -98,9 +83,15 @@ class HGTDBDataLoader():
         elif data_type == 'D':
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT", "Mah"]) # only SD 
         elif data_type == 'E':
-            df = df.drop(columns=["FunctionCode","GC1","GC2","GC3","GCT"]) 
+            # So z score is basically what is calculated for sd1,2,3,t
+            # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
         elif data_type == 'F':
             df = df.drop(columns=["FunctionCode","Length","Strand","GC1","GC2","GC3","GCT"]) 
+        elif data_type == 'G':
+            # So z score is basically what is calculated for sd1,2,3,t
+            # E but from 0 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
         else:
             raise ValueError(f'No data type {data_type}')
         
@@ -108,51 +99,75 @@ class HGTDBDataLoader():
         if drop_na:
             df.dropna(inplace=True)
         
-        if return_df:
-            # return as pandas
-            return df
-        else:
-            # return as numpy array
-            array = df.values
-            # return X, y
-            return array[:,0:-1], array[:,-1]
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+        df = df.bfill(axis='columns')
+        #for column in df.columns:
+        #    df[column] = df[column].fillna(0)
+        self.null_count +=df.isnull().sum().sum()
+        self.na_count +=df.isna().sum().sum()
+        if df.isna().sum().sum() >0:
+            print(df[df.isna().any(axis=1)])
+            
+        if data_type == 'E':
+            df['SD1'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD1']]
+            df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
+            df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
+            df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+        elif data_type == 'G':
+            df['SD1'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1) for x in df['SD1']]
+            df['SD2'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SD2']]
+            df['SD3'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SD3']]
+            df['SDT'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SDT']]
+
+        
+        # return as numpy array
+        array = df.values
+        # return X, y
+        return array[:,0:-1], array[:,-1]
         
     
     def dataset_prep(self):
-            '''
-            TODO: Think about the design better!
-            this abstract method should set X, Y, train and test
-            '''
-            partition_frame = pd.read_csv(self.partition_file)
-            if self.data_type == 'A':
-                columns = 4
-            elif self.data_type == 'B':
-                columns = 12
-            elif self.data_type == 'C':
-                columns = 10
-            elif self.data_type == 'D':
-                columns = 4
-            elif self.data_type == 'E':
-                columns = 8
-            elif self.data_type == 'F':
-                columns = 6
+        '''
+        TODO: Think about the design better!
+        this abstract method should set X, Y, train and test
+        '''
+        
+        partition_frame = pd.read_csv(self.partition_file)
+        if self.data_type == 'A':
+            columns = 4
+        elif self.data_type == 'B':
+            columns = 12
+        elif self.data_type == 'C':
+            columns = 10
+        elif self.data_type == 'D':
+            columns = 4
+        elif self.data_type == 'E':
+            columns = 4
+        elif self.data_type == 'F':
+            columns = 6
+        elif self.data_type == 'G':
+            columns = 4
+        else:
+            raise ValueError(f'Unknown data type {self.data_type}')
+        X_train = np.array([]).reshape(0,columns)
+        y_train = np.array([]).reshape(0,)
+        X_test = np.array([]).reshape(0,columns)
+        y_test = np.array([]).reshape(0,)
+        
+        for i in range(len(partition_frame)):
+            X,y = self._load_single_file(partition_frame.loc[i,'file'], self.data_type)
+            if partition_frame.loc[i,'partition'] == 'train':
+                X_train = np.concatenate([X, X_train], axis = 0)
+                y_train = np.concatenate([y, y_train], axis = 0)
             else:
-                raise ValueError(f'Unknown data type {self.data_type}')
-            X_train = np.array([]).reshape(0,columns)
-            y_train = np.array([]).reshape(0,)
-            X_test = np.array([]).reshape(0,columns)
-            y_test = np.array([]).reshape(0,)
-            
-            for i in range(len(partition_frame)):
-                X,y = self._load_single_file(partition_frame.loc[i,'file'], self.data_type)
-                if partition_frame.loc[i,'partition'] == 'train':
-                    X_train = np.concatenate([X, X_train], axis = 0)
-                    y_train = np.concatenate([y, y_train], axis = 0)
-                else:
-                    X_test = np.concatenate([X, X_test], axis = 0)
-                    y_test = np.concatenate([y, y_test], axis = 0)
-            
-            return X_train, y_train, X_test, y_test
+                X_test = np.concatenate([X, X_test], axis = 0)
+                y_test = np.concatenate([y, y_test], axis = 0)
+        
+        return X_train, y_train, X_test, y_test
         
         
 class HGTDBDatasetSequential(torch.utils.data.Dataset):
@@ -225,6 +240,9 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
             # z score for mah is added here
             # this z score is cutoff at two and scaled down by two so data ranges from -1 to 1
             df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT"]) # only SD1,SD2,SD3,SDT, Mah
+        elif data_type == 'G':
+            # E but from 0 to 1
+            df = df.drop(columns=["FunctionCode","Strand","AADev","Length","GC1","GC2","GC3","GCT","Mah"]) # only SD1,SD2,SD3,SDT
         
         # count nulls!
         #df.bfill(inplace=True)
@@ -263,6 +281,11 @@ class HGTDBDatasetSequential(torch.utils.data.Dataset):
             df['SD2'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD2']]
             df['SD3'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SD3']]
             df['SDT'] = [ (2*(abs(x)/x))/2 if abs(x)>2 else x/2 for x in df['SDT']]
+        elif data_type == 'G':
+            df['SD1'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1) for x in df['SD1']]
+            df['SD2'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SD2']]
+            df['SD3'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SD3']]
+            df['SDT'] = [ 0.5*((abs(x)/x) + 1) if abs(x)>2 else 0.5*((x/2)+1)  for x in df['SDT']]
         elif data_type == 'F':
             # need to reindex!
             df=df.reset_index(drop=True)
@@ -404,23 +427,44 @@ class TestHGTDBDataLoaderPrep(unittest.TestCase):
         #print(hgtdb_train[0])
         assert len(hgtdb_train)!=0, "error"
         
+        
+    def test_sequential_datatype_E(self):
+        hgtdb_train = HGTDBDatasetSequential('E','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        print('E')
+        print(hgtdb_train[0])
+        assert len(hgtdb_train)!=0, "error"
+        
+    def test_sequential_datatype_G(self):
+        hgtdb_train = HGTDBDatasetSequential('G','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        print('G')
+        print(hgtdb_train[0])
+        assert len(hgtdb_train)!=0, "error"
+        
     def test_sequential_dataloader(self):
         hgtdb_train = HGTDBDatasetSequential('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
         dataloader = torch.utils.data.DataLoader(dataset=hgtdb_train,batch_size=5,shuffle=True)
-        print(next(iter(dataloader)))
+        #print(next(iter(dataloader)))
         assert len(hgtdb_train)!=0, "error"
         
     def test_sequential_dataloader_v2(self):
         hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
-        print(hgtdb_train[0])
+        #print(hgtdb_train[0])
+        #print(f' Training length {len(hgtdb_train)}')
         assert len(hgtdb_train)!=0, "error"
     
     def test_sequential_dataloader_v2_2(self):
         hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
         dataloader = torch.utils.data.DataLoader(dataset=hgtdb_train,batch_size=5,shuffle=True)
         
-        print(next(iter(dataloader)))
+        #print(next(iter(dataloader)))
         assert len(hgtdb_train)!=0, "error"
+        
+    def test_lengths(self):
+        dataloader_1 = HGTDBDataLoader('F','partition_file/HGTDB_firmicutes.csv')
+        x1,y1,x2,y2 = dataloader_1.dataset_prep()
+        hgtdb_train = HGTDBDatasetSequential_v2('C','partition_file/HGTDB_firmicutes_trisplit.csv', 'train')
+        #print(hgtdb_train[0])
+        assert len(x1)==len(hgtdb_train), "error"
     
     
     #def test_init_positive(self):
