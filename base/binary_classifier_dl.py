@@ -52,6 +52,8 @@ class BinaryClassifierDLBase:
         self.loss = None
         self.optimizer = None
         
+        self.loss_type = None
+        
         self._set_params(**params)
         # self.learning_rate = learning_rate    
         #self._set_dl_loss(loss)
@@ -115,8 +117,12 @@ class BinaryClassifierDLBase:
     def _set_dl_loss(self, loss='BCE'):
         if loss == 'BCE':
             self.loss = nn.BCELoss()
+        elif loss == 'CE':
+            self.loss = nn.CrossEntropyLoss(ignore_index=-1)
         else:
             raise ValueError(f'Unknown loss: {loss}')
+        self.loss_type = loss
+        
         
     def _set_dl_optimizer(self, optimizer='Adam', learning_rate=0.01):
         if optimizer == 'Adam':
@@ -179,7 +185,8 @@ class BinaryClassifierDLBase:
             'epoch': self.epoch,
             'model_state_dict': self.algorithm.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'loss': self.loss
+            'loss': self.loss,
+            'loss_type': self.loss_type
             }, os.path.join(folder_name,'model_'+'BinaryClassifier'))
         
     def _load_model(self):
@@ -194,6 +201,7 @@ class BinaryClassifierDLBase:
         self.epoch = checkpoint['epoch']
         self.algorithm.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.loss_type = checkpoint['loss_type']
         
         
         
@@ -223,14 +231,22 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 inputs = (data['datum'], data['seq_length'])
                 output,_ = self.algorithm(inputs)
                 
-                # bad code but it works for now
-                # it basically packs padded and unpad them....
+                # 
                 targets = rnn.pack_padded_sequence(data['label'], lengths=data['seq_length'], batch_first=True, enforce_sorted=False)
-                targets,_ = rnn.pad_packed_sequence(targets, batch_first=True)
+                
+                if self.loss_type == 'BCE':
+                    targets,_ = rnn.pad_packed_sequence(targets, batch_first=True)
+                    # calc loss
+                    loss = self.loss(output, targets)
+                elif self.loss_type == 'CE':
+                    targets,_ = rnn.pad_packed_sequence(targets, batch_first=True, padding_value=-1)
+                    # calc loss
+                    #CE takes batch x C x seq_len ! permute is needed
+                    #targs need to be squeezed and changed to long tensor!
+                    #print(targets.type(torch.LongTensor))
+                    loss = self.loss(output.permute(0, 2, 1), targets.squeeze(2).type(torch.LongTensor))
                 
                 
-                # calc loss
-                loss = self.loss(output, targets)
                 loss.backward()
 
                 # optimizer step
@@ -246,9 +262,15 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                     output, input_sizes = self.algorithm(inputs)
                     
                     targets = rnn.pack_padded_sequence(data['label'], lengths=data['seq_length'], batch_first=True, enforce_sorted=False)
-                    targets,_ = rnn.pad_packed_sequence(targets, batch_first=True)
-                    # calc loss
-                    loss = self.loss(output, targets)
+                    if self.loss_type == 'BCE':
+                        targets,_ = rnn.pad_packed_sequence(targets, batch_first=True)
+                        # calc loss
+                        loss = self.loss(output, targets)
+                    elif self.loss_type == 'CE':
+                        targets,_ = rnn.pad_packed_sequence(targets, batch_first=True, padding_value=-1)
+                        # calc loss
+                        #CE takes batch x C x seq_len ! permute is needed and squeeze
+                        loss = self.loss(output.permute(0, 2, 1), targets.squeeze(2).type(torch.LongTensor))
 
                     acc_vl_loss += loss.item()
 
@@ -299,7 +321,11 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 
             targets = torch.squeeze(targets,2)
             # the squeeze here is needed and fine
-            output = torch.squeeze(output,2)
+            if self.loss_type == 'BCE':
+                output = torch.squeeze(output,2)
+            elif self.loss_type == 'CE':
+                _, output = torch.max(output,2)
+                #print(output)
             
             # this one not sure! it takes away the batch!
             
@@ -425,7 +451,11 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 #print(accuracy)
                 
             # the squeeze here is needed and fine
-            output = torch.squeeze(output,2)
+            #output = torch.squeeze(output,2)
+            if self.loss_type == 'BCE':
+                output = torch.squeeze(output,2)
+            elif self.loss_type == 'CE':
+                _, output = torch.max(output,2)
             
 
             for i in range(output.size(0)):

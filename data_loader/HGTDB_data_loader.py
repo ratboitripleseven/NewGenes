@@ -155,6 +155,8 @@ class HGTDBDataLoader():
             raise ValueError(f'Unknown data type {self.data_type}')
         X_train = np.array([]).reshape(0,columns)
         y_train = np.array([]).reshape(0,)
+        X_valid = np.array([]).reshape(0,columns)
+        y_valid = np.array([]).reshape(0,)
         X_test = np.array([]).reshape(0,columns)
         y_test = np.array([]).reshape(0,)
         
@@ -163,11 +165,14 @@ class HGTDBDataLoader():
             if partition_frame.loc[i,'partition'] == 'train':
                 X_train = np.concatenate([X, X_train], axis = 0)
                 y_train = np.concatenate([y, y_train], axis = 0)
-            else:
+            elif partition_frame.loc[i,'partition'] == 'valid':
+                X_valid = np.concatenate([X, X_valid], axis = 0)
+                y_valid = np.concatenate([y, y_valid], axis = 0)
+            elif partition_frame.loc[i,'partition'] == 'test':
                 X_test = np.concatenate([X, X_test], axis = 0)
                 y_test = np.concatenate([y, y_test], axis = 0)
         
-        return X_train, y_train, X_test, y_test
+        return X_train, y_train, X_valid, y_valid, X_test, y_test
         
         
 class HGTDBDatasetSequential(torch.utils.data.Dataset):

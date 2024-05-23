@@ -746,6 +746,7 @@ class NCBIDataDownloaderPrep:
         
         
         # calculate mahalanobis distances
+        # imported from utils.annotate_HGTs.py
         calculate_mahalanobis_distances(self)
         hgt_candidates_Mah = get_potential_HGT_Mah(self)
 

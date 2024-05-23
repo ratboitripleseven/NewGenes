@@ -64,6 +64,8 @@ class BinaryClassifier:
         
         self.X_train = None
         self.Y_train = None
+        self.X_valid = None
+        self.Y_valid = None
         self.X_test = None
         self.Y_test = None
         self.accuracy = None
@@ -107,9 +109,11 @@ class BinaryClassifier:
     def _print_data_statistics(self):
         print('\tDataset statistics:')
         print(f'\t\tLength of Training set: {len(self.X_train)}')
+        print(f'\t\tLength of Valid set: {len(self.X_valid)}')
         print(f'\t\tLength of Test set: {len(self.X_test)}')
         self.logger.info('\tDataset statistics:')
         self.logger.info(f'\t\tLength of Training set: {len(self.X_train)}')
+        self.logger.info(f'\t\tLength of Valid set: {len(self.X_valid)}')
         self.logger.info(f'\t\tLength of Test set: {len(self.X_test)}')
         
         
@@ -121,19 +125,25 @@ class BinaryClassifier:
             # Use to annotate
             print('Annotation mode')
         else:
-            self.X_train,self.Y_train, self.X_test, self.Y_test  = self.dataloader.dataset_prep()
+            self.X_train, self.Y_train, self.X_valid, self.Y_valid, self.X_test, self.Y_test  = self.dataloader.dataset_prep()
         
     
     def model_train(self):
         self.logger.info('Training Starts')
         self.algorithm.fit(self.X_train,self.Y_train)
+        print('Valid set')
+        self._get_accuracy(self.X_valid, self.Y_valid)
+        self._get_precision(self.X_valid, self.Y_valid)
+        self._get_recall(self.X_valid, self.Y_valid)
+        self._get_roc_auc(self.X_valid, self.Y_valid)
+        print('*'*30)
 
     def model_eval(self):
         self.logger.info('Evaluation Starts')
-        self._get_accuracy()
-        self._get_precision()
-        self._get_recall()
-        self._get_roc_auc()
+        self._get_accuracy(self.X_test, self.Y_test)
+        self._get_precision(self.X_test, self.Y_test)
+        self._get_recall(self.X_test, self.Y_test)
+        self._get_roc_auc(self.X_test, self.Y_test)
         
     def model_annotate(self, annotated_dataset):
         # TODO
@@ -170,49 +180,36 @@ class BinaryClassifier:
         
         
         
-    def _get_accuracy(self): 
-        if self.accuracy is None:
-            predictions = self.algorithm.predict(self.X_test)
-            self.accuracy = metrics.accuracy_score(self.Y_test, predictions)
-            print(f'acc: {self.accuracy}')
-            self.logger.info(f'prec: {self.accuracy}')
-        else:
-            print(f'acc: {self.accuracy}')
-            self.logger.info(f'prec: {self.accuracy}')
+    def _get_accuracy(self,x_set,y_set): 
+        predictions = self.algorithm.predict(x_set)
+        self.accuracy = metrics.accuracy_score(y_set, predictions)
+        print(f'acc: {self.accuracy}')
+        self.logger.info(f'prec: {self.accuracy}')
             
-    def _get_precision(self):
-        if self.precision is None:
-            predictions = self.algorithm.predict(self.X_test)
-            self.precision = metrics.precision_score(self.Y_test, predictions)
-            print(f'prec: {self.precision}')
-            self.logger.info(f'prec: {self.precision}')
-        else:
-            print(f'prec: {self.precision}')
-            self.logger.info(f'prec: {self.precision}')
+    def _get_precision(self,x_set,y_set):
+        predictions = self.algorithm.predict(x_set)
+        self.precision = metrics.precision_score(y_set, predictions)
+        print(f'prec: {self.precision}')
+        self.logger.info(f'prec: {self.precision}')
+
             
-    def _get_recall(self):
-        if self.recall is None:
-            predictions = self.algorithm.predict(self.X_test)
-            self.recall = metrics.recall_score(self.Y_test, predictions)
-            print(f'recall: {self.recall}')
-            self.logger.info(f'recall: {self.recall}')
-        else:
-            print(f'recall: {self.recall}')
-            self.logger.info(f'recall: {self.recall}')
+    def _get_recall(self, x_set, y_set):
+        predictions = self.algorithm.predict(x_set)
+        self.recall = metrics.recall_score(y_set, predictions)
+        print(f'recall: {self.recall}')
+        self.logger.info(f'recall: {self.recall}')
+
         
         
-    def _get_roc_auc(self):
+    def _get_roc_auc(self, x_set, y_set):
         #predictions = self.model.predict(X_test)
         #self.roc_auc = metrics.roc_auc_score(Y_test, self.model.decision_function(X_test))
         
-        if self.roc_auc is None:
-            y_proba = self.algorithm.predict_proba(self.X_test)[:, 1]
-            self.roc_auc = metrics.roc_auc_score(self.Y_test, y_proba)
-            print(f'roc_auc: {self.roc_auc}')
-            self.logger.info(f'roc_auc: {self.roc_auc}')
-        else:
-            print(f'roc_auc: {self.roc_auc}')
-            self.logger.info(f'roc_auc: {self.roc_auc}')
+        y_proba = self.algorithm.predict_proba(x_set)[:, 1]
+        self.roc_auc = metrics.roc_auc_score(y_set, y_proba)
+        print(f'roc_auc: {self.roc_auc}')
+        self.logger.info(f'roc_auc: {self.roc_auc}')
+
             
     def save_model(self):
         '''
