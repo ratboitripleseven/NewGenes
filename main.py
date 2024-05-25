@@ -3,6 +3,7 @@ import argparse
 import yaml
 import logging
 import os
+import csv
 
 #import models
 from lightgbm import LGBMClassifier
@@ -63,9 +64,6 @@ def load_algorithm(algorithm_type, algorithm):
         else:
             raise ValueError(f'no such thing as {algorithm}')
     elif algorithm_type in ['d','e']:
-        # for deep learning
-        # TODO: Params could be usefule here...
-        # Models should be configurable easier way!
         
         if algorithm == 'LSTM_v3':
             # need to make this configurable for now leave it
@@ -80,6 +78,9 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'LSTM_v6':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_v6(4,10,1)
+        elif algorithm == 'LSTM_v7':
+            # need to make this configurable for now leave it
+            return LSTMHGTTagger_v7(4,10,2)
         elif algorithm == 'LSTM_unpadded_v6':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_unpadded_v6(4,10,1)
@@ -89,6 +90,9 @@ def load_algorithm(algorithm_type, algorithm):
         elif algorithm == 'BiLSTM_v6':
             # need to make this configurable for now leave it
             return BiLSTMHGTTagger_v6(4,10,1)
+        elif algorithm == 'BiLSTM_v7':
+            # need to make this configurable for now leave it
+            return BiLSTMHGTTagger_v7(4,10,2)
         elif algorithm == 'LSTM_nofc_v1':
             # need to make this configurable for now leave it
             return LSTMHGTTagger_nofc_v1(4,1)
@@ -148,7 +152,9 @@ def assert_config(args):
         'LSTM_v5',
         'LSTM_v6',
         'LSTM_v6_1',
+        'LSTM_v7',
         'BiLSTM_v6',
+        'BiLSTM_v7',
         'LSTM_nofc_v1',
         'LSTM_unpadded_v6']
     list_of_algorithm_types = [
@@ -167,7 +173,7 @@ def assert_config(args):
     ]
     list_of_data_type = ['A','B','C','D','E','F','G']
     # list_of_mode = ['train', 'eval', 'annotate']
-    list_of_mode = ['train', 'eval']
+    list_of_mode = ['train', 'eval', 'cross_val']
     
     print('-*-'*20)
     ## check mode
@@ -202,7 +208,8 @@ def assert_config(args):
         raise ValueError('Unknwon Datatype!')
     else:
         print(f"\tData type selected: \n\t\t{configuration['Dataset']['data_type']} ")
-        print(f"\tPartition file: \n\t\t{configuration['Dataset']['partition_file'].replace('partition_file/','')} ")
+        #print(f"\tPartition file: \n\t\t{configuration['Dataset']['partition_file'].replace('partition_file/','')} ")
+        print(f"\tPartition file: \n\t\t{configuration['Dataset']['partition_file']} ")
     
     # check model configs
     if configuration['Model']['type'] not in list_of_model_types:
@@ -233,13 +240,19 @@ def assert_config(args):
 def main():
     configuration, args = assert_config(parse_args())
     
-    algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
-    print(algorithm)
+    if args.mode == 'cross_val':
+        pass
+    else:
+        algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
+    #print(algorithm)
     
     if args.annotate:
         dataloader = (None,None,None)
     else:
-        dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
+        if args.mode == 'cross_val':
+            pass
+        else:
+            dataloader = load_dataloader(configuration['Dataset']['data_loader'], configuration['Dataset']['partition_file'], configuration['Dataset']['data_type'])
         
     
     
@@ -249,10 +262,35 @@ def main():
         test_model = load_type( configuration['Model']['type'], args.config, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'])
         if configuration['Model']['algorithm_type'] == 'c':
             test_model.model_train()
+            test_model.save_model()
         elif configuration['Model']['algorithm_type'] in ['d','e']:
             test_model.model_train(configuration['Model']['epochs'])
-        test_model.model_eval()
-        test_model.save_model()
+        #test_model.model_eval()
+        #test_model.save_model()
+    elif args.mode == 'cross_val':
+        if len(configuration['Dataset']['partition_file']) <= 1:
+            raise ValueError('YO CROSS VALIDATION NEED MORE THAN ONE PARTITION FILE')
+        if configuration['Model']['algorithm_type'] == 'c':
+            metrics = []
+            for partition_file in configuration['Dataset']['partition_file']:
+                
+                part = partition_file.replace('partition_file/','').replace('.csv','')
+                print(part)
+                algorithm = load_algorithm(configuration['Model']['algorithm_type'], configuration['Model']['algorithm'])
+                dataloader = load_dataloader(configuration['Dataset']['data_loader'], partition_file, configuration['Dataset']['data_type'])
+                test_model = load_type(configuration['Model']['type'], args.config+'_'+part, configuration['Model']['algorithm_type'], algorithm, dataloader, configuration['Model']['params'])
+                test_model.model_train()
+                metrics.append((part,test_model.accuracy, test_model.precision,test_model.recall,test_model.f_one))
+                test_model.save_model()
+            #print(metrics)
+            # print csv for cv
+            with open(ROOT_CONFIGURATION_FOLDER+args.config+'.csv','w') as out:
+                csv_out=csv.writer(out)
+                #csv_out.writerow(['genome','type','gene','SD1','SD2','SD3','SDT'])
+                csv_out.writerow(['PARTITION','ACC','PREC','REC','f1'])
+                csv_out.writerows(metrics)
+            
+        #print(configuration['Dataset']['partition_file'])
     elif args.mode == 'eval':
         if args.annotate:
             print('Evaluation: Annotating')

@@ -213,11 +213,14 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
         
     def model_train(self, epochs = 15):
         self.logger.info('START OF TRAINING')
+        curr_loss = 0.
+        best_loss = 0.
         for epoch in range(epochs):
             self.epoch += 1
             print(f'training epoch:{self.epoch}')
             acc_loss = 0.
-            acc_vl_loss = 0.
+            
+            #acc_vl_loss = 0.
             y_true_list = []
             y_pred_list = []
             
@@ -252,62 +255,73 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
                 # optimizer step
                 self.optimizer.step()
                 acc_loss += loss.item()
+                curr_loss = loss.item()
                 
-            # eval
-            for (idx, data) in enumerate(self.valid_loader):
-                self.algorithm.eval()
-                
-                with torch.no_grad():
-                    inputs = (data['datum'], data['seq_length'])
-                    output, input_sizes = self.algorithm(inputs)
-                    
-                    targets = rnn.pack_padded_sequence(data['label'], lengths=data['seq_length'], batch_first=True, enforce_sorted=False)
-                    if self.loss_type == 'BCE':
-                        targets,_ = rnn.pad_packed_sequence(targets, batch_first=True)
-                        # calc loss
-                        loss = self.loss(output, targets)
-                    elif self.loss_type == 'CE':
-                        targets,_ = rnn.pad_packed_sequence(targets, batch_first=True, padding_value=-1)
-                        # calc loss
-                        #CE takes batch x C x seq_len ! permute is needed and squeeze
-                        loss = self.loss(output.permute(0, 2, 1), targets.squeeze(2).type(torch.LongTensor))
-
-                    acc_vl_loss += loss.item()
-
-
-                
-                #targets = torch.squeeze(targets,2)
-                # the squeeze here is needed and fine
-                #output = torch.squeeze(output,2)
-                
-                # this one not sure! it takes away the batch!
-                
-
-
-                #for i in range(targets.size(0)):
-                #    y_true_list = [*y_true_list, *targets[i].detach().numpy()]
-                #    y_pred_list = [*y_pred_list, *output[i].detach().round().numpy()]
-
-            #acc = metrics.accuracy_score(y_true_list, y_pred_list)
-            #print(f'val acc: {acc}')
-                
+            print(f'current loss: {curr_loss}')
+            self.logger.info(f'current loss: {curr_loss}')
+            if self.epoch == 1:
+                best_loss = curr_loss
+                print(f'best loss! {best_loss}')
+                self.save_model()
+            else:
+                if best_loss>curr_loss:
+                    best_loss = curr_loss
+                    print(f'best loss! {best_loss}')
+                    self.logger.info(f'best loss! {best_loss}')
+                    self.save_model()
+        
             print(f'acculumative loss: {acc_loss/len(self.train_loader)}')
-            print(f'acculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
             self.logger.info(f'epoch: {self.epoch}')
             self.logger.info(f'\tacculumative loss: {acc_loss/len(self.train_loader)}')
-            self.logger.info(f'\tacculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
+        
+        # outide of epoc    
+        # eval
+        self.model_eval('valid')
+        # for (idx, data) in enumerate(self.valid_loader):
+        #     self.algorithm.eval()
+            
+        #     with torch.no_grad():
+        #         inputs = (data['datum'], data['seq_length'])
+        #         output, input_sizes = self.algorithm(inputs)
+                
+        #         targets = rnn.pack_padded_sequence(data['label'], lengths=data['seq_length'], batch_first=True, enforce_sorted=False)
+        #         if self.loss_type == 'BCE':
+        #             targets,_ = rnn.pad_packed_sequence(targets, batch_first=True)
+        #             # calc loss
+        #             loss = self.loss(output, targets)
+        #         elif self.loss_type == 'CE':
+        #             targets,_ = rnn.pad_packed_sequence(targets, batch_first=True, padding_value=-1)
+        #             # calc loss
+        #             #CE takes batch x C x seq_len ! permute is needed and squeeze
+        #             loss = self.loss(output.permute(0, 2, 1), targets.squeeze(2).type(torch.LongTensor))
+
+        #         acc_vl_loss += loss.item()
+
+
+                
+
+                
+        #print(f'acculumative loss: {acc_loss/len(self.train_loader)}')
+        #print(f'acculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
+        self.logger.info(f'epoch: {self.epoch}')
+        self.logger.info(f'\tacculumative loss: {acc_loss/len(self.train_loader)}')
+        #self.logger.info(f'\tacculumative vl loss: {acc_vl_loss/len(self.valid_loader)}')
 
     
-    def model_eval(self):
+    def model_eval(self, loader = 'test'):
         #y_true_list = []
         #y_pred_list = []
+        if loader=='test':
+            loader=self.test_loader
+        elif loader =='valid':
+            loader=self.valid_loader
         y_pred_true = []
         list_input_sizes = []
         y_pred_not_rounded = []
         
         self.logger.info('START OF EVAL')
-        print(len(self.test_loader))
-        for (idx, data) in enumerate(self.test_loader):
+        print(len(loader))
+        for (idx, data) in enumerate(loader):
             self.algorithm.eval()
             with torch.no_grad():
                 inputs = (data['datum'], data['seq_length'])
@@ -480,7 +494,9 @@ class BinaryClassifierDLSequential(BinaryClassifierDLBase):
         self.output_annotation(genome_id,y_pred_rounded)
 
 
-
+####################################
+######DO NOT USE####################
+####################################
 class BinaryClassifierDLNonSequential(BinaryClassifierDLBase):
     def __init__(self, name, algotrithm_type, algorithm, params, train_dataset, valid_dataset, test_dataset, mode='train'):
         print('INTIALIZING DL NON-SEQUENTIAL (UNPADDED!)')
