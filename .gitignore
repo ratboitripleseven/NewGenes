@@ -51,3 +51,4 @@ test/*
 outbreak_genome/*
 15_genome.ipynb
 outbreak_genome.ipynb
+data/HGTDB/preprocessed_data_2/*

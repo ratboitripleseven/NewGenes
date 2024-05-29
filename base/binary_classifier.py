@@ -155,6 +155,16 @@ class BinaryClassifier:
         self._get_recall(self.X_test, self.Y_test)
         self._get_f1(self.X_test, self.Y_test)
         self._get_roc_auc(self.X_test, self.Y_test)
+        print(f'acc: {self.accuracy}')
+        self.logger.info(f'acc: {self.accuracy}')
+        print(f'prec: {self.precision}')
+        self.logger.info(f'prec: {self.precision}')
+        print(f'recall: {self.recall}')
+        self.logger.info(f'recall: {self.recall}')
+        print(f'f1: {self.f_one}')
+        self.logger.info(f'f1: {self.f_one}')
+        print(f'roc_auc: {self.roc_auc}')
+        self.logger.info(f'roc_auc: {self.roc_auc}')
         
     def model_annotate(self, annotated_dataset):
         # TODO
