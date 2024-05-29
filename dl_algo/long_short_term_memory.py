@@ -238,17 +238,50 @@ class LSTMHGTTagger_v6(nn.Module):
         
         # pack padded sequence.. exp from work
         input = rnn.pack_padded_sequence(data, lengths=seq_length, batch_first=True, enforce_sorted=False)
-        
+        #print(f'PRE-LSTM: {input}')
         #input to model
         lstm_out, _ = self.lstm(input)
         #print(f'1 {lstm_out.size()}')
-        
+        #print(f'POST-LSTM: {lstm_out}')
         # unpack
         # apparently this unpacks them? https://gist.github.com/HarshTrivedi/f4e7293e941b17d19058f6fb90ab0fec
         output, input_sizes = rnn.pad_packed_sequence(lstm_out, batch_first=True)
-        #print(f'2 {output.size()}')
+        #print(f'PRE-FF: {output}')
         output = self.act_func_last(self.hidden2tag(output))
+        #print(f'POST-FF: {output}')
+        return output, input_sizes
+    
+class LSTMHGTTagger_v7(nn.Module):
 
+    def __init__(self, embedding_dim, hidden_dim, tagset_size):
+        super(LSTMHGTTagger_v7, self).__init__()
+        
+        self.last_epoch= 0
+        self.hidden_dim = hidden_dim
+
+        # The LSTM takes word embeddings as inputs, and outputs hidden states
+        # with dimensionality hidden_dim.
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+        self.act_func_last = nn.ReLU()
+        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+
+    def forward(self, input):
+        
+        data, seq_length = input
+        
+        # pack padded sequence.. exp from work
+        input = rnn.pack_padded_sequence(data, lengths=seq_length, batch_first=True, enforce_sorted=False)
+        #print(f'PRE-LSTM: {input}')
+        #input to model
+        lstm_out, _ = self.lstm(input)
+        #print(f'1 {lstm_out.size()}')
+        #print(f'POST-LSTM: {lstm_out}')
+        # unpack
+        # apparently this unpacks them? https://gist.github.com/HarshTrivedi/f4e7293e941b17d19058f6fb90ab0fec
+        output, input_sizes = rnn.pad_packed_sequence(lstm_out, batch_first=True)
+        #print(f'PRE-FF: {output}')
+        output = self.act_func_last(self.hidden2tag(output))
+        #print(f'POST-FF: {output}')
         return output, input_sizes
     
 class LSTMHGTTagger_unpadded_v6(nn.Module):
@@ -288,6 +321,39 @@ class BiLSTMHGTTagger_v6(nn.Module):
         # with dimensionality hidden_dim.
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True, bidirectional = True)
         self.act_func_last = nn.Sigmoid()
+        self.hidden2tag = nn.Linear(hidden_dim*2, tagset_size)
+
+    def forward(self, input):
+        
+        data, seq_length = input
+        
+        # pack padded sequence.. exp from work
+        input = rnn.pack_padded_sequence(data, lengths=seq_length, batch_first=True, enforce_sorted=False)
+        
+        #input to model
+        lstm_out, _ = self.lstm(input)
+        
+        
+        # unpack
+        # apparently this unpacks them? https://gist.github.com/HarshTrivedi/f4e7293e941b17d19058f6fb90ab0fec
+        output, input_sizes = rnn.pad_packed_sequence(lstm_out, batch_first=True)
+        #print(f'2 {output.size()}')
+        output = self.act_func_last(self.hidden2tag(output))
+
+        return output, input_sizes
+
+class BiLSTMHGTTagger_v7(nn.Module):
+
+    def __init__(self, embedding_dim, hidden_dim, tagset_size):
+        super(BiLSTMHGTTagger_v7, self).__init__()
+        
+        self.last_epoch= 0
+        self.hidden_dim = hidden_dim
+
+        # The LSTM takes word embeddings as inputs, and outputs hidden states
+        # with dimensionality hidden_dim.
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True, bidirectional = True)
+        self.act_func_last = nn.ReLU()
         self.hidden2tag = nn.Linear(hidden_dim*2, tagset_size)
 
     def forward(self, input):

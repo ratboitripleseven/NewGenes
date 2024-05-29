@@ -12,4 +12,4 @@ include: "rules/analysis.smk"
 
 rule all:
     input:
-        expand("/results/{date}/analysis/card/{sample}/{sample}.txt", date=get_run_date(), sample=get_samples()),
+        expand("results/{date}/analysis/card/{sample}/{sample}.txt", date=get_run_date(), sample=get_samples()),
