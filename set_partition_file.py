@@ -36,13 +36,13 @@ def parse_args():
         '--file',
         type = str,
         default = 'partition_file/phylum_Myxococcota_tiny.csv',
-        help = 'Choose taxonomy level'
+        help = 'path to partition file'
     )
     parser.add_argument(
         '-n',
         '--ncbi',
         action = 'store_true',
-        help = 'Choose taxonomy level'
+        help = 'Flag for NCBI or not'
     )
     return parser.parse_args()
 
