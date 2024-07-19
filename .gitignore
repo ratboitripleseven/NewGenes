@@ -19,7 +19,7 @@ data/NCBI/cog-20.def.tab
 data/HGTREE/version_1/*
 data/HGTREE/sequence_files/*
 data/prepped/*
-partition_file/*
+partition_file/others/*
 reference/*
 models/*
 configuration/*
