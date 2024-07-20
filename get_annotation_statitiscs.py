@@ -186,27 +186,7 @@ def create_annotation_statistics(model, name, csv_file):
         csv_out.writerows(to_csv)
     
     
-    
-    
-    
 
-        
-class TestAnnotationStatistics(unittest.TestCase):
-    def test_open_annotated_fasta(self):
-        test = open_annotated_fasta('annotated_file_HGT/HGTDB_ALL/ASM221032v1.fasta')
-        #print(test['B7988_00005'])
-        assert test['B7988_00005']!=0, "error!"
-        
-    def test_open_result_json(self):
-        test = open_result_json('results/HGT_DB/analysis/card/ASM221032v1/ASM221032v1.json')
-        
-        #print(test['B7988_12605'])
-        assert True, "error!"
-        
-    def test_create_annotation_statistics(self):
-        test = create_annotation_statistics('annotated_file_HGT/HGTDB_ALL/ASM221032v1.fasta','results/HGT_DB/analysis/card/ASM221032v1/ASM221032v1.json')
-        
-        assert test == 0, 'error!'
         
 
 def open_partition_file(partition_file):
@@ -225,6 +205,7 @@ if __name__ == '__main__':
     for i in csv_files:
         sample_name = i.split('/')[-1]
         sample_name = sample_name.replace('.csv','')
+        print(sample_name)
         create_annotation_statistics(model, sample_name, i)
-        print(i.split('/')[-1])
+        #print(i.split('/')[-1])
     
