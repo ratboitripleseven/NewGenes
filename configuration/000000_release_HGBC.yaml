@@ -1,0 +1,14 @@
+Model:
+  type: binary_classifier
+  algorithm_type: c
+  algorithm: HGBC
+  params:
+    max_bins : 20
+    
+Dataset:
+  data_loader: HGTDB
+  data_type: E
+  partition_file: partition_file/uniform_coverage_partition_final.csv
+
+
+

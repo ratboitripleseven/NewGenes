@@ -22,7 +22,7 @@ data/prepped/*
 partition_file/others/*
 reference/*
 models/*
-configuration/*
+configuration/adjies_configuration/*
 annotated_file_HGT/*
 # personal stuff ignore!
 newgenes_complete_reference.csv

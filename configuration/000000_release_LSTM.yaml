@@ -1,0 +1,17 @@
+Model:
+  type: binary_classifier
+  algorithm_type: d
+  algorithm: LSTM_v7
+  epochs: 2
+  params:
+    loss: CE
+    optimizer: Adam
+    learning_rate: 0.001
+    
+Dataset:
+  data_loader: sequential
+  data_type: E
+  partition_file: partition_file/uniform_coverage_partition_final.csv
+
+
+
