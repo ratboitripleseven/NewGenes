@@ -45,6 +45,14 @@ There is an example config that shows how to use cross-eval
 
 file is 230524_HGBC_CV_maxbin_5_weighted_class.yaml
 
+if you check the config file then you see that there are MULTIPLE partition file
+
+```
+python main.py -c 230524_HGBC_CV_maxbin_5_weighted_class -m cross_val
+```
+
+
+
 ## Annotating samples
 Add sample in sample_sequences
 Preferably by creating a folder
