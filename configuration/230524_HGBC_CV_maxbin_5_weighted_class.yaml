@@ -1,0 +1,24 @@
+Model:
+  type: binary_classifier
+  algorithm_type: c
+  algorithm: HGBC
+  params:
+    max_bins : 5
+    class_weight: balanced
+    
+Dataset:
+  data_loader: HGTDB
+  data_type: E
+  partition_file: 
+    - partition_file/uniform_coverage_partition_0.csv
+    - partition_file/uniform_coverage_partition_1.csv
+    - partition_file/uniform_coverage_partition_2.csv
+    - partition_file/uniform_coverage_partition_3.csv
+    - partition_file/uniform_coverage_partition_4.csv
+    - partition_file/uniform_coverage_partition_5.csv
+    - partition_file/uniform_coverage_partition_6.csv
+    - partition_file/uniform_coverage_partition_7.csv
+    - partition_file/uniform_coverage_partition_8.csv
+    - partition_file/uniform_coverage_partition_9.csv
+
+
